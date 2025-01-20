@@ -7,6 +7,7 @@ import '../screens/login_screen.dart';
 import '../screens/home_screen.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   bool isAuthenticated = await AuthServices.isAuthenticated();
@@ -21,7 +22,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-     incrementDailyUserCount();
+    incrementDailyUserCount();
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Tangkaraw',
@@ -29,7 +30,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.lightBlue),
         useMaterial3: true,
         textTheme: TextTheme(
-          bodyText2: TextStyle(
+          bodyMedium: TextStyle(
             fontFamily: 'Poppins', // Replace with your font family name
           ),
         ),
@@ -45,7 +46,9 @@ class MyApp extends StatelessWidget {
       // Use SplashScreen as the initial route
       initialRoute: '/',
       routes: {
-        '/': (context) => SplashScreen(isAuthenticated: isAuthenticated), // Pass isAuthenticated to SplashScreen
+        '/': (context) => SplashScreen(
+            isAuthenticated:
+                isAuthenticated), // Pass isAuthenticated to SplashScreen
         // Define other routes here
         ...Routes.getRoutes(context),
       },
@@ -54,7 +57,6 @@ class MyApp extends StatelessWidget {
 }
 
 // SplashScreen widget
-
 
 // AuthenticationWrapper widget
 class AuthenticationWrapper extends StatelessWidget {
