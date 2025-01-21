@@ -1,7 +1,8 @@
 import 'package:DILGDOCS/utils/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:connectivity/connectivity.dart';
+// import 'package:connectivity/connectivity.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../Services/auth_services.dart';
 
 class EditUser extends StatefulWidget {
@@ -103,7 +104,6 @@ class _EditUserState extends State<EditUser> {
       },
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -211,8 +211,8 @@ class _EditUserState extends State<EditUser> {
               TextButton(
                 onPressed: () {
                   Navigator.pop(context);
-                 Navigator.pop(context); 
-                    },
+                  Navigator.pop(context);
+                },
                 child: Text('OK'),
               ),
             ],
@@ -255,11 +255,12 @@ class _EditUserState extends State<EditUser> {
                     ),
                     SizedBox(height: 16),
                     ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context); // Close the EditUser screen
-                       Navigator.pop(context); // Navigate to the Settings screen
-                    },
-                    child: Text('OK'),
+                      onPressed: () {
+                        Navigator.pop(context); // Close the EditUser screen
+                        Navigator.pop(
+                            context); // Navigate to the Settings screen
+                      },
+                      child: Text('OK'),
                     ),
                   ],
                 ),

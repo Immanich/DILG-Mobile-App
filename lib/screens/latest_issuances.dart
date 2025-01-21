@@ -1,22 +1,24 @@
 import 'dart:convert';
 import 'package:DILGDOCS/models/latest_issuances.dart';
 import 'package:DILGDOCS/screens/file_utils.dart';
-import 'package:connectivity/connectivity.dart';
+// import 'package:connectivity/connectivity.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../Services/globals.dart';
 import 'details_screen.dart';
 import 'package:http/http.dart' as http;
+
 class LatestIssuances extends StatefulWidget {
   @override
   _LatestIssuancesState createState() => _LatestIssuancesState();
-   
 }
 
 class _LatestIssuancesState extends State<LatestIssuances> {
   List<LatestIssuance> _latestIssuances = [];
-  List<LatestIssuance> _filteredLatestIssuances = []; // Initialize filtered list
+  List<LatestIssuance> _filteredLatestIssuances =
+      []; // Initialize filtered list
   TextEditingController _searchController = TextEditingController();
   bool _hasInternetConnection = true;
   bool _isLoading = true;
@@ -25,10 +27,12 @@ class _LatestIssuancesState extends State<LatestIssuances> {
   void initState() {
     super.initState();
     // fetchLatestIssuances();
-     _checkInternetConnection();
-     _loadContentIfConnected();
-    Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
-      if (result == ConnectivityResult.none) {
+    _checkInternetConnection();
+    _loadContentIfConnected();
+    Connectivity()
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> result) {
+      if (result.contains(ConnectivityResult.none)) {
         setState(() {
           _hasInternetConnection = false;
         });
@@ -38,7 +42,7 @@ class _LatestIssuancesState extends State<LatestIssuances> {
     });
   }
 
-   Future<void> _loadContentIfConnected() async {
+  Future<void> _loadContentIfConnected() async {
     var connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult != ConnectivityResult.none) {
       setState(() {
@@ -49,8 +53,7 @@ class _LatestIssuancesState extends State<LatestIssuances> {
     }
   }
 
-
-Future<void> _checkInternetConnection() async {
+  Future<void> _checkInternetConnection() async {
     var connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult == ConnectivityResult.none) {
       setState(() {
@@ -59,61 +62,64 @@ Future<void> _checkInternetConnection() async {
     }
   }
 
-Future<void> fetchLatestIssuances() async {
-  final response = await http.get(
-    Uri.parse('$baseURL/latest_issuances'),
-    headers: {
-      'Accept': 'application/json',
-    },
-  );
-
-  if (response.statusCode == 200) {
-    final Map<String, dynamic>? responseData = json.decode(response.body);
-
-    if (responseData != null && responseData.containsKey('latests')) {
-      final List<dynamic> data = responseData['latests'];
-
-      setState(() {
-        _latestIssuances = data.map((item) => LatestIssuance.fromJson(item)).toList();
-        _filteredLatestIssuances = _latestIssuances;
-         _isLoading = false;
-      });
-    } else {
-      print('Failed to load latest opinions: Data format error');
-      print('Response body: ${response.body}'); // Print response body for debugging
-    }
-  } else {
-    print('Failed to load latest opinions');
-    print('Response status code: ${response.statusCode}');
-    print('Response body: ${response.body}');
-  }
-}
-
-Future<void> _openWifiSettings() async {
-  const url = 'app-settings:';
-  if (await canLaunch(url)) {
-    await launch(url);
-  } else {
-    // Provide a generic message for both Android and iOS users
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Unable to open Wi-Fi settings'),
-          content: Text('Please open your Wi-Fi settings manually via the device settings.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text('OK'),
-            ),
-          ],
-        );
+  Future<void> fetchLatestIssuances() async {
+    final response = await http.get(
+      Uri.parse('$baseURL/latest_issuances'),
+      headers: {
+        'Accept': 'application/json',
       },
     );
+
+    if (response.statusCode == 200) {
+      final Map<String, dynamic>? responseData = json.decode(response.body);
+
+      if (responseData != null && responseData.containsKey('latests')) {
+        final List<dynamic> data = responseData['latests'];
+
+        setState(() {
+          _latestIssuances =
+              data.map((item) => LatestIssuance.fromJson(item)).toList();
+          _filteredLatestIssuances = _latestIssuances;
+          _isLoading = false;
+        });
+      } else {
+        print('Failed to load latest opinions: Data format error');
+        print(
+            'Response body: ${response.body}'); // Print response body for debugging
+      }
+    } else {
+      print('Failed to load latest opinions');
+      print('Response status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
+    }
   }
-}
+
+  Future<void> _openWifiSettings() async {
+    const url = 'app-settings:';
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      // Provide a generic message for both Android and iOS users
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Unable to open Wi-Fi settings'),
+            content: Text(
+                'Please open your Wi-Fi settings manually via the device settings.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -126,37 +132,35 @@ Future<void> _openWifiSettings() async {
             color: Colors.white,
           ),
         ),
-         iconTheme: IconThemeData(
+        iconTheme: IconThemeData(
           color: Colors.white,
         ),
         backgroundColor: Colors.blue[900],
       ),
-        body: _hasInternetConnection 
-    ? (_isLoading 
-        ? _buildLoadingWidget() 
-        : _buildBody())
-    : Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'No internet connection',
-              style: TextStyle(fontSize: 20.0),
+      body: _hasInternetConnection
+          ? (_isLoading ? _buildLoadingWidget() : _buildBody())
+          : Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'No internet connection',
+                    style: TextStyle(fontSize: 20.0),
+                  ),
+                  SizedBox(height: 10.0),
+                  ElevatedButton(
+                    onPressed: () {
+                      _openWifiSettings();
+                    },
+                    child: Text('Connect to Internet'),
+                  ),
+                ],
+              ),
             ),
-            SizedBox(height: 10.0),
-            ElevatedButton(
-              onPressed: () {
-                _openWifiSettings();
-              },
-              child: Text('Connect to Internet'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
-Widget _buildLoadingWidget() {
+  Widget _buildLoadingWidget() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -172,8 +176,8 @@ Widget _buildLoadingWidget() {
     );
   }
 
- Widget _buildBody() {
-     if (_isLoading) {
+  Widget _buildBody() {
+    if (_isLoading) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -187,13 +191,12 @@ Widget _buildLoadingWidget() {
           ],
         ),
       );
-    
     }
     return SingleChildScrollView(
       child: Column(
         children: [
           // Search Input
-           Container(
+          Container(
             margin: EdgeInsets.only(top: 16.0),
             padding: EdgeInsets.symmetric(horizontal: 16.0),
             decoration: BoxDecoration(
@@ -305,7 +308,7 @@ Widget _buildLoadingWidget() {
                                                   'Outcome Area: ${_filteredLatestIssuances[index].outcome}',
                                                   _searchController.text)
                                               : TextSpan(text: ''),
-                                            style: TextStyle(
+                                          style: TextStyle(
                                             fontSize: 12,
                                             color: Colors.grey,
                                             overflow: TextOverflow.ellipsis,
@@ -357,101 +360,104 @@ Widget _buildLoadingWidget() {
   }
 
   void _navigateToDetailsPage(BuildContext context, LatestIssuance issuance) {
-  print('PDF URL: ${issuance.issuance.urlLink}');
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => DetailsScreen(
-        title: issuance.issuance.title,
-        content: 'Ref #: ${issuance.issuance.referenceNo != 'N/A' ? issuance.issuance.referenceNo + '\n' : ''}'
+    print('PDF URL: ${issuance.issuance.urlLink}');
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DetailsScreen(
+            title: issuance.issuance.title,
+            content:
+                'Ref #: ${issuance.issuance.referenceNo != 'N/A' ? issuance.issuance.referenceNo + '\n' : ''}'
                 '${issuance.issuance.date != 'N/A' ? DateFormat('MMMM dd, yyyy').format(DateTime.parse(issuance.issuance.date)) + '\n' : ''}'
                 '${issuance.category != 'N/A' ? 'Category: ${issuance.category}\n' : ''}',
-        pdfUrl: issuance.issuance.urlLink,
-        type: getTypeForDownload(issuance.issuance.type),
-      ),
-    )
-  );
-}
-Widget buildContent(LatestIssuance issuance) {
-  List<InlineSpan> spans = [];
-
-  if (issuance.issuance.referenceNo != 'N/A') {
-    spans.add(TextSpan(text: 'Ref #${issuance.issuance.referenceNo}\n'));
+            pdfUrl: issuance.issuance.urlLink,
+            type: getTypeForDownload(issuance.issuance.type),
+          ),
+        ));
   }
 
-  if (issuance.issuance.date != 'N/A') {
-    spans.add(TextSpan(text: '${DateFormat('MMMM dd, yyyy').format(DateTime.parse(issuance.issuance.date))}\n'));
+  Widget buildContent(LatestIssuance issuance) {
+    List<InlineSpan> spans = [];
+
+    if (issuance.issuance.referenceNo != 'N/A') {
+      spans.add(TextSpan(text: 'Ref #${issuance.issuance.referenceNo}\n'));
+    }
+
+    if (issuance.issuance.date != 'N/A') {
+      spans.add(TextSpan(
+          text:
+              '${DateFormat('MMMM dd, yyyy').format(DateTime.parse(issuance.issuance.date))}\n'));
+    }
+
+    if (issuance.category != 'N/A') {
+      spans.add(TextSpan(text: 'Category: ${issuance.category}\n'));
+    }
+
+    return RichText(
+      text: TextSpan(children: spans),
+      textAlign: TextAlign.start,
+    );
   }
 
-  if (issuance.category != 'N/A') {
-    spans.add(TextSpan(text: 'Category: ${issuance.category}\n'));
+  void _filterLatestIssuances(String query) {
+    setState(() {
+      // Filter the latest issuances based on the search query
+      _filteredLatestIssuances = _latestIssuances.where((issuance) {
+        final title = issuance.issuance.title.toLowerCase();
+        final referenceNo = issuance.issuance.referenceNo.toLowerCase();
+        return title.contains(query.toLowerCase()) ||
+            referenceNo.contains(query.toLowerCase());
+      }).toList();
+    });
   }
 
-  return RichText(
-    text: TextSpan(children: spans),
-    textAlign: TextAlign.start,
-  );
-}
+  TextSpan highlightMatches(String text, String query) {
+    if (query.isEmpty) {
+      return TextSpan(text: text);
+    }
 
+    List<TextSpan> textSpans = [];
 
- void _filterLatestIssuances(String query) {
-  setState(() {
-    // Filter the latest issuances based on the search query
-    _filteredLatestIssuances = _latestIssuances.where((issuance) {
-      final title = issuance.issuance.title.toLowerCase();
-      final referenceNo = issuance.issuance.referenceNo.toLowerCase();
-      return title.contains(query.toLowerCase()) || referenceNo.contains(query.toLowerCase());
-    }).toList();
-  });
-}
+    // Create a regular expression pattern with case-insensitive matching
+    RegExp regex = RegExp(query, caseSensitive: false);
 
+    // Find all matches of the query in the text
+    Iterable<Match> matches = regex.allMatches(text);
 
-TextSpan highlightMatches(String text, String query) {
-  if (query.isEmpty) {
-    return TextSpan(text: text);
+    // Start index for slicing the text
+    int startIndex = 0;
+
+    // Add text segments with and without highlighting
+    for (Match match in matches) {
+      // Add text segment before the match
+      textSpans.add(TextSpan(text: text.substring(startIndex, match.start)));
+
+      // Add the matching segment with highlighting
+      textSpans.add(TextSpan(
+        text: text.substring(match.start, match.end),
+        style: TextStyle(
+          color: Colors.blue,
+          fontWeight: FontWeight.bold,
+        ),
+      ));
+
+      // Update the start index for the next segment
+      startIndex = match.end;
+    }
+
+    // Add the remaining text segment
+    textSpans.add(TextSpan(text: text.substring(startIndex)));
+
+    return TextSpan(children: textSpans);
   }
 
-  List<TextSpan> textSpans = [];
-
-  // Create a regular expression pattern with case-insensitive matching
-  RegExp regex = RegExp(query, caseSensitive: false);
-
-  // Find all matches of the query in the text
-  Iterable<Match> matches = regex.allMatches(text);
-
-  // Start index for slicing the text
-  int startIndex = 0;
-
-  // Add text segments with and without highlighting
-  for (Match match in matches) {
-    // Add text segment before the match
-    textSpans.add(TextSpan(text: text.substring(startIndex, match.start)));
-
-    // Add the matching segment with highlighting
-    textSpans.add(TextSpan(
-      text: text.substring(match.start, match.end),
-      style: TextStyle(
-        color: Colors.blue, 
-        fontWeight: FontWeight.bold, 
-      ),
-    ));
-
-    // Update the start index for the next segment
-    startIndex = match.end;
-  }
-
-  // Add the remaining text segment
-  textSpans.add(TextSpan(text: text.substring(startIndex)));
-
-  return TextSpan(children: textSpans);
-}
-
- String _truncateText(String text, int maxLength) {
+  String _truncateText(String text, int maxLength) {
     if (text.length <= maxLength) {
       return text;
     } else {
       return text.substring(0, maxLength) + '...';
     }
- }
-void _navigateToSelectedPage(BuildContext context, int index) {}
+  }
+
+  void _navigateToSelectedPage(BuildContext context, int index) {}
 }

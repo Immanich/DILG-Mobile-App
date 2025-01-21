@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:DILGDOCS/Services/globals.dart';
-import 'package:connectivity/connectivity.dart';
+// import 'package:connectivity/connectivity.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -26,10 +27,12 @@ class _RepublicActsState extends State<RepublicActs> {
   void initState() {
     super.initState();
     // fetchRepublicActs();
-     _loadContentIfConnected();
+    _loadContentIfConnected();
     _checkInternetConnection();
-    Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
-      if (result == ConnectivityResult.none) {
+    Connectivity()
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> result) {
+      if (result.contains(ConnectivityResult.none)) {
         setState(() {
           _hasInternetConnection = false;
         });
@@ -39,7 +42,7 @@ class _RepublicActsState extends State<RepublicActs> {
     });
   }
 
-   Future<void> _loadContentIfConnected() async {
+  Future<void> _loadContentIfConnected() async {
     var connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult != ConnectivityResult.none) {
       setState(() {
@@ -50,8 +53,7 @@ class _RepublicActsState extends State<RepublicActs> {
     }
   }
 
-
-Future<void> _checkInternetConnection() async {
+  Future<void> _checkInternetConnection() async {
     var connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult == ConnectivityResult.none) {
       setState(() {
@@ -60,31 +62,32 @@ Future<void> _checkInternetConnection() async {
     }
   }
 
-Future<void> _openWifiSettings() async {
-  const url = 'app-settings:';
-  if (await canLaunch(url)) {
-    await launch(url);
-  } else {
-    // Provide a generic message for both Android and iOS users
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Unable to open Wi-Fi settings'),
-          content: Text('Please open your Wi-Fi settings manually via the device settings.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
+  Future<void> _openWifiSettings() async {
+    const url = 'app-settings:';
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      // Provide a generic message for both Android and iOS users
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Unable to open Wi-Fi settings'),
+            content: Text(
+                'Please open your Wi-Fi settings manually via the device settings.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
-}
 
   Future<void> fetchRepublicActs() async {
     final response = await http.get(
@@ -99,7 +102,7 @@ Future<void> _openWifiSettings() async {
       setState(() {
         _republicActs = data.map((item) => RepublicAct.fromJson(item)).toList();
         _filteredRepublicActs = _republicActs;
-          _isLoading = false; 
+        _isLoading = false;
       });
     } else {
       // Handle error
@@ -125,29 +128,26 @@ Future<void> _openWifiSettings() async {
         ),
         backgroundColor: Colors.blue[900],
       ),
-     body: _hasInternetConnection 
-    ? (_isLoading 
-        ? _buildLoadingWidget() 
-        : _buildBody())
-    : Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'No internet connection',
-              style: TextStyle(fontSize: 20.0),
+      body: _hasInternetConnection
+          ? (_isLoading ? _buildLoadingWidget() : _buildBody())
+          : Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'No internet connection',
+                    style: TextStyle(fontSize: 20.0),
+                  ),
+                  SizedBox(height: 10.0),
+                  ElevatedButton(
+                    onPressed: () {
+                      _openWifiSettings();
+                    },
+                    child: Text('Connect to Internet'),
+                  ),
+                ],
+              ),
             ),
-            SizedBox(height: 10.0),
-            ElevatedButton(
-              onPressed: () {
-                _openWifiSettings();
-              },
-              child: Text('Connect to Internet'),
-            ),
-          ],
-        ),
-      ),
-      
     );
   }
 
@@ -167,7 +167,7 @@ Future<void> _openWifiSettings() async {
     );
   }
 
-   Widget _buildBody() {
+  Widget _buildBody() {
     if (_isLoading) {
       return Center(
         child: Column(
@@ -216,124 +216,124 @@ Future<void> _openWifiSettings() async {
                 _filterRepublicActs(value); // Corrected method call
               },
             ),
-        ),
-
+          ),
 
           // Display the filtered republic acts or "No republic acts found" message
           _filteredRepublicActs.isEmpty
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'No republic acts found',
-                    style: TextStyle(fontSize: 18.0),
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'No republic acts found',
+                      style: TextStyle(fontSize: 18.0),
+                    ),
                   ),
-                ),
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(height: 16.0),
-                  for (int index = 0;
-                      index < _filteredRepublicActs.length;
-                      index++)
-                    InkWell(
-                      onTap: () {
-                        _navigateToDetailsPage(
-                            context, _filteredRepublicActs[index]);
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                                color:
-                                    const Color.fromARGB(255, 203, 201, 201),
-                                width: 1.0),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(height: 16.0),
+                    for (int index = 0;
+                        index < _filteredRepublicActs.length;
+                        index++)
+                      InkWell(
+                        onTap: () {
+                          _navigateToDetailsPage(
+                              context, _filteredRepublicActs[index]);
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                  color:
+                                      const Color.fromARGB(255, 203, 201, 201),
+                                  width: 1.0),
+                            ),
                           ),
-                        ),
-                        child: Card(
-                          elevation: 0,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Row(
-                              children: [
-                                Icon(Icons.article, color: Colors.blue[900]),
-                                SizedBox(width: 16.0),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text.rich(
-                                        highlightMatches(
-                                          _filteredRepublicActs[index]
-                                              .issuance
-                                              .title,
-                                          _searchController.text,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                      SizedBox(height: 4.0),
-                                      Text(
-                                        _filteredRepublicActs[index]
-                                                    .responsibleOffice !=
-                                                'N/A'
-                                            ? 'Responsible Office: ${_filteredRepublicActs[index].responsibleOffice}'
-                                            : '',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey,
+                          child: Card(
+                            elevation: 0,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.article, color: Colors.blue[900]),
+                                  SizedBox(width: 16.0),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text.rich(
+                                          highlightMatches(
+                                            _filteredRepublicActs[index]
+                                                .issuance
+                                                .title,
+                                            _searchController.text,
+                                          ),
+                                          maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                        SizedBox(height: 4.0),
+                                        Text(
+                                          _filteredRepublicActs[index]
+                                                      .responsibleOffice !=
+                                                  'N/A'
+                                              ? 'Responsible Office: ${_filteredRepublicActs[index].responsibleOffice}'
+                                              : '',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                SizedBox(width: 16.0),
-                                Text(
-                                  _filteredRepublicActs[index]
-                                              .issuance
-                                              .date !=
-                                          'N/A'
-                                      ? DateFormat('MMMM dd, yyyy').format(
-                                          DateTime.parse(
-                                              _filteredRepublicActs[index]
-                                                  .issuance
-                                                  .date))
-                                      : '',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontStyle: FontStyle.italic,
+                                  SizedBox(width: 16.0),
+                                  Text(
+                                    _filteredRepublicActs[index]
+                                                .issuance
+                                                .date !=
+                                            'N/A'
+                                        ? DateFormat('MMMM dd, yyyy').format(
+                                            DateTime.parse(
+                                                _filteredRepublicActs[index]
+                                                    .issuance
+                                                    .date))
+                                        : '',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontStyle: FontStyle.italic,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
-              ),
+                  ],
+                ),
         ],
       ),
     );
   }
+
   void _navigateToDetailsPage(BuildContext context, RepublicAct issuance) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => DetailsScreen(
           title: issuance.issuance.title,
-           content: 'Ref #: ${issuance.issuance.referenceNo != 'N/A' ? issuance.issuance.referenceNo + '\n' : ''}'
-                '${issuance.issuance.date != 'N/A' ? DateFormat('MMMM dd, yyyy').format(DateTime.parse(issuance.issuance.date)) + '\n' : ''}',
-          pdfUrl: issuance.issuance.urlLink, 
+          content:
+              'Ref #: ${issuance.issuance.referenceNo != 'N/A' ? issuance.issuance.referenceNo + '\n' : ''}'
+              '${issuance.issuance.date != 'N/A' ? DateFormat('MMMM dd, yyyy').format(DateTime.parse(issuance.issuance.date)) + '\n' : ''}',
+          pdfUrl: issuance.issuance.urlLink,
           type: getTypeForDownload(issuance.issuance.type),
-      
         ),
       ),
     );
@@ -345,7 +345,8 @@ Future<void> _openWifiSettings() async {
       _filteredRepublicActs = _republicActs.where((act) {
         final title = act.issuance.title.toLowerCase();
         final referenceNo = act.issuance.referenceNo.toLowerCase();
-        return title.contains(query.toLowerCase()) || referenceNo.contains(query.toLowerCase());
+        return title.contains(query.toLowerCase()) ||
+            referenceNo.contains(query.toLowerCase());
       }).toList();
     });
   }

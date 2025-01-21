@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'package:DILGDOCS/Services/globals.dart';
 import 'package:DILGDOCS/models/draft_issuances.dart';
 import 'package:DILGDOCS/screens/file_utils.dart';
-import 'package:connectivity/connectivity.dart';
+// import 'package:connectivity/connectivity.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -21,15 +22,33 @@ class _DraftIssuancesState extends State<DraftIssuances> {
   bool _hasInternetConnection = true;
   bool _isLoading = true;
 
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   // fetchDraftIssuances();
+  //   _checkInternetConnection();
+  //   _loadContentIfConnected();
+  //   Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
+  //     if (result == ConnectivityResult.none) {
+  //       setState(() {
+  //         _hasInternetConnection = false;
+  //       });
+  //     } else {
+  //       _loadContentIfConnected();
+  //     }
+  //   });
+  // }
 
   @override
   void initState() {
     super.initState();
     // fetchDraftIssuances();
-     _checkInternetConnection();
-     _loadContentIfConnected();
-    Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
-      if (result == ConnectivityResult.none) {
+    _checkInternetConnection();
+    _loadContentIfConnected();
+    Connectivity()
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> result) {
+      if (result.contains(ConnectivityResult.none)) {
         setState(() {
           _hasInternetConnection = false;
         });
@@ -39,7 +58,7 @@ class _DraftIssuancesState extends State<DraftIssuances> {
     });
   }
 
- Future<void> _loadContentIfConnected() async {
+  Future<void> _loadContentIfConnected() async {
     var connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult != ConnectivityResult.none) {
       setState(() {
@@ -50,8 +69,7 @@ class _DraftIssuancesState extends State<DraftIssuances> {
     }
   }
 
-
-Future<void> _checkInternetConnection() async {
+  Future<void> _checkInternetConnection() async {
     var connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult == ConnectivityResult.none) {
       setState(() {
@@ -60,31 +78,32 @@ Future<void> _checkInternetConnection() async {
     }
   }
 
-Future<void> _openWifiSettings() async {
-  const url = 'app-settings:';
-  if (await canLaunch(url)) {
-    await launch(url);
-  } else {
-    // Provide a generic message for both Android and iOS users
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Unable to open Wi-Fi settings'),
-          content: Text('Please open your Wi-Fi settings manually via the device settings.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
+  Future<void> _openWifiSettings() async {
+    const url = 'app-settings:';
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      // Provide a generic message for both Android and iOS users
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Unable to open Wi-Fi settings'),
+            content: Text(
+                'Please open your Wi-Fi settings manually via the device settings.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
-}
 
   Future<void> fetchDraftIssuances() async {
     final response = await http.get(
@@ -96,9 +115,10 @@ Future<void> _openWifiSettings() async {
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body)['drafts'];
       setState(() {
-        _draftIssuances = data.map((item) => DraftIssuance.fromJson(item)).toList();
+        _draftIssuances =
+            data.map((item) => DraftIssuance.fromJson(item)).toList();
         _filteredDraftIssuances = _draftIssuances;
-         _isLoading = false; 
+        _isLoading = false;
       });
     } else {
       // Handle error
@@ -124,33 +144,30 @@ Future<void> _openWifiSettings() async {
         ),
         backgroundColor: Colors.blue[900],
       ),
-     body: _hasInternetConnection 
-    ? (_isLoading 
-        ? _buildLoadingWidget() 
-        : _buildBody())
-    : Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'No internet connection',
-              style: TextStyle(fontSize: 20.0),
+      body: _hasInternetConnection
+          ? (_isLoading ? _buildLoadingWidget() : _buildBody())
+          : Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'No internet connection',
+                    style: TextStyle(fontSize: 20.0),
+                  ),
+                  SizedBox(height: 10.0),
+                  ElevatedButton(
+                    onPressed: () {
+                      _openWifiSettings();
+                    },
+                    child: Text('Connect to Internet'),
+                  ),
+                ],
+              ),
             ),
-            SizedBox(height: 10.0),
-            ElevatedButton(
-              onPressed: () {
-                _openWifiSettings();
-              },
-              child: Text('Connect to Internet'),
-            ),
-          ],
-        ),
-      ),
-      
     );
   }
 
-Widget _buildLoadingWidget() {
+  Widget _buildLoadingWidget() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -166,7 +183,7 @@ Widget _buildLoadingWidget() {
     );
   }
 
- Widget _buildBody() {
+  Widget _buildBody() {
     if (_isLoading) {
       return Center(
         child: Column(
@@ -181,42 +198,41 @@ Widget _buildLoadingWidget() {
           ],
         ),
       );
-    
     }
     return SingleChildScrollView(
       child: Column(
         children: [
           // Search Input
           Container(
-          margin: EdgeInsets.only(top: 16.0),
-          padding: EdgeInsets.symmetric(horizontal: 16.0),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.grey.withOpacity(0.5),
-                spreadRadius: 2,
-                blurRadius: 5,
-                offset: Offset(0, 3), // changes position of shadow
-              ),
-            ],
-          ),
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Search...',
-              prefixIcon: Icon(Icons.search, color: Colors.grey),
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(vertical: 16.0),
+            margin: EdgeInsets.only(top: 16.0),
+            padding: EdgeInsets.symmetric(horizontal: 16.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.5),
+                  spreadRadius: 2,
+                  blurRadius: 5,
+                  offset: Offset(0, 3), // changes position of shadow
+                ),
+              ],
             ),
-            style: TextStyle(fontSize: 16.0),
-            onChanged: (value) {
-              // Call the function to filter the list based on the search query
-              _filterDraftIssuances(value); // Corrected method call
-            },
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search...',
+                prefixIcon: Icon(Icons.search, color: Colors.grey),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 16.0),
+              ),
+              style: TextStyle(fontSize: 16.0),
+              onChanged: (value) {
+                // Call the function to filter the list based on the search query
+                _filterDraftIssuances(value); // Corrected method call
+              },
+            ),
           ),
-        ),
 
           // Display the filtered draft issuances or "No draft issuances found" message
           _filteredDraftIssuances.isEmpty
