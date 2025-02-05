@@ -50,16 +50,15 @@ class DetailsScreen extends StatelessWidget {
     required this.type, // Add this line
   });
 
-   Widget build(BuildContext context) {
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
           title,
-          style: TextStyle(color: Colors.white, fontFamily: 'Poppins')
-          ,
+          style: TextStyle(color: Colors.white, fontFamily: 'Poppins'),
         ),
         backgroundColor: Colors.blue[900],
-         iconTheme: IconThemeData(
+        iconTheme: IconThemeData(
           color: Colors.white,
         ),
       ),
@@ -126,114 +125,113 @@ class DetailsScreen extends StatelessWidget {
       ),
     );
   }
- Future<void> downloadAndSavePdf(
-    BuildContext context, String url, String title) async {
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (BuildContext context) {
-      return Dialog(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Downloading PDF...'),
-            ],
+
+  Future<void> downloadAndSavePdf(
+      BuildContext context, String url, String title) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Downloading PDF...'),
+              ],
+            ),
           ),
-        ),
-      );
-    },
-  );
+        );
+      },
+    );
 
-  try {
-    final appDir = await getExternalStorageDirectory();
-    final directoryPath = '${appDir!.path}/PDFs';
-    final sanitizedTitle = sanitizeFilename(title); // Sanitize the title
-    final truncatedTitle = truncateTitle(sanitizedTitle); // Truncate the title
-    final filePath = '$directoryPath/$truncatedTitle.pdf';
+    try {
+      final appDir = await getExternalStorageDirectory();
+      final directoryPath = '${appDir!.path}/PDFs';
+      final sanitizedTitle = sanitizeFilename(title); // Sanitize the title
+      final truncatedTitle =
+          truncateTitle(sanitizedTitle); // Truncate the title
+      final filePath = '$directoryPath/$truncatedTitle.pdf';
 
-    final file = File(filePath);
-    if (await file.exists()) {
-      Navigator.of(context).pop(); // Close the loading dialog
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text('File Already Downloaded'),
-            content: Text(
-                'The PDF has already been downloaded and saved locally.'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: Text('OK'),
-              ),
-            ],
-          );
-        },
-      );
-      return;
-    }
-
-    final response = await http.get(Uri.parse(url));
-
-    if (response.statusCode == 200) {
-      final directory = Directory(directoryPath);
-      if (!await directory.exists()) {
-        await directory.create(recursive: true);
+      final file = File(filePath);
+      if (await file.exists()) {
+        Navigator.of(context).pop(); // Close the loading dialog
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text('File Already Downloaded'),
+              content: Text(
+                  'The PDF has already been downloaded and saved locally.'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
+        return;
       }
 
-      await file.writeAsBytes(response.bodyBytes);
+      final response = await http.get(Uri.parse(url));
 
-      print('PDF downloaded and saved at: $filePath');
+      if (response.statusCode == 200) {
+        final directory = Directory(directoryPath);
+        if (!await directory.exists()) {
+          await directory.create(recursive: true);
+        }
 
+        await file.writeAsBytes(response.bodyBytes);
+
+        print('PDF downloaded and saved at: $filePath');
+
+        Navigator.of(context).pop(); // Close the loading dialog
+
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text('Download Complete'),
+              content: Text('The PDF has been downloaded and saved locally.'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
+      } else {
+        throw Exception('Failed to load PDF: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error downloading PDF: $e');
       Navigator.of(context).pop(); // Close the loading dialog
-
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text('Download Complete'),
-            content: Text('The PDF has been downloaded and saved locally.'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: Text('OK'),
-              ),
-            ],
-          );
-        },
-      );
-    } else {
-      throw Exception('Failed to load PDF: ${response.statusCode}');
     }
-  } catch (e) {
-    print('Error downloading PDF: $e');
-    Navigator.of(context).pop(); // Close the loading dialog
   }
-}
 
-String truncateTitle(String title, {int maxLength = 250}) {
-  if (title.length <= maxLength) {
-    return title;
-  } else {
-    return title.substring(0, maxLength - 3) + '...';
+  String truncateTitle(String title, {int maxLength = 250}) {
+    if (title.length <= maxLength) {
+      return title;
+    } else {
+      return title.substring(0, maxLength - 3) + '...';
+    }
   }
-}
 
-
-
-String sanitizeFilename(String filename) {
-  // Replace characters that are not allowed in file names
-  return filename.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
-}
-
+  String sanitizeFilename(String filename) {
+    // Replace characters that are not allowed in file names
+    return filename.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+  }
 }
 
 class PdfPreview extends StatelessWidget {
