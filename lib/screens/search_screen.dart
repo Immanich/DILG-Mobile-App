@@ -31,7 +31,8 @@ class _SearchScreenState extends State<SearchScreen> {
   List<MemoCircular> _memoCirculars = [];
   List<MemoCircular> get memoCirculars => _memoCirculars;
   List<PresidentialDirective> _presidentialDirectives = [];
-  List<PresidentialDirective> get presidentialDirectives =>_presidentialDirectives;
+  List<PresidentialDirective> get presidentialDirectives =>
+      _presidentialDirectives;
   List<RepublicAct> _republicActs = [];
   List<RepublicAct> get republicActs => _republicActs;
   List<LegalOpinion> _legalOpinions = [];
@@ -49,7 +50,6 @@ class _SearchScreenState extends State<SearchScreen> {
   bool isSearching = false;
   bool showNoMatchFound = false;
   Timer? _debounceTimer;
-
 
   @override
   void initState() {
@@ -84,81 +84,80 @@ class _SearchScreenState extends State<SearchScreen> {
       print('Microphone permission denied');
     }
   }
-void _startListening() {
-  print('Start Listening');
-  setState(() {
-    isModalOpen = true;
-  });
-  if (speech.isAvailable) {
-    if (!speech.isListening) {
-      _showListeningDialog(context); // Show listening dialog
-      speech.listen(
-        onResult: (result) {
-          if (result.finalResult) {
-            String searchText = result.recognizedWords;
-            _searchController.text = searchText;
-            print('Search Text: $searchText');
-            _handleSearch(); // Call the search method when speech is recognized
-            Navigator.pop(context); // Dismiss the dialog when speech is recognized
-          }
-        },
-      );
-    }
-  } else {
-    print('Speech recognition not available');
-  }
-}
 
-void _stopListening() {
-  if (isListening) {
-    speech.stop();
+  void _startListening() {
+    print('Start Listening');
     setState(() {
-      isListening = false;
-      isModalOpen = false;
+      isModalOpen = true;
     });
-    Navigator.pop(context); // Dismiss the dialog when listening stops
+    if (speech.isAvailable) {
+      if (!speech.isListening) {
+        _showListeningDialog(context); // Show listening dialog
+        speech.listen(
+          onResult: (result) {
+            if (result.finalResult) {
+              String searchText = result.recognizedWords;
+              _searchController.text = searchText;
+              print('Search Text: $searchText');
+              _handleSearch(); // Call the search method when speech is recognized
+              Navigator.pop(
+                  context); // Dismiss the dialog when speech is recognized
+            }
+          },
+        );
+      }
+    } else {
+      print('Speech recognition not available');
+    }
   }
-}
 
+  void _stopListening() {
+    if (isListening) {
+      speech.stop();
+      setState(() {
+        isListening = false;
+        isModalOpen = false;
+      });
+      Navigator.pop(context); // Dismiss the dialog when listening stops
+    }
+  }
 
   void _showListeningDialog(BuildContext context) {
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        title: Text("Listening..."),
-        content: SingleChildScrollView(
-          child: ListBody(
-            children: <Widget>[
-              WaveWidget(
-                config: CustomConfig(
-                  gradients: [
-                    [Colors.blue, Colors.blueAccent],
-                    [Colors.blueAccent, Colors.blue],
-                  ],
-                  durations: [1500, 1000],
-                  heightPercentages: [0.25, 0.3],
-                  blur: MaskFilter.blur(
-                    BlurStyle.solid,
-                    10,
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("Listening..."),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                WaveWidget(
+                  config: CustomConfig(
+                    gradients: [
+                      [Colors.blue, Colors.blueAccent],
+                      [Colors.blueAccent, Colors.blue],
+                    ],
+                    durations: [1500, 1000],
+                    heightPercentages: [0.25, 0.3],
+                    blur: MaskFilter.blur(
+                      BlurStyle.solid,
+                      10,
+                    ),
+                    gradientBegin: Alignment.bottomLeft,
+                    gradientEnd: Alignment.topRight,
                   ),
-                  gradientBegin: Alignment.bottomLeft,
-                  gradientEnd: Alignment.topRight,
+                  waveAmplitude: 1,
+                  size: Size(300, 100),
                 ),
-                waveAmplitude: 1,
-                size: Size(300, 100), 
-              ),
-              SizedBox(height: 16),
-              // Text("Please speak your search query."),
-            ],
+                SizedBox(height: 16),
+                // Text("Please speak your search query."),
+              ],
+            ),
           ),
-        ),
-      );
-    },
-  );
-}
-
-
+        );
+      },
+    );
+  }
 
   void _checkPermissions() async {
     var status = await Permission.microphone.status;
@@ -305,26 +304,116 @@ void _stopListening() {
     }
   }
 
-  // Legal Opinions
   Future<void> fetchLegalOpinions() async {
-    final response =
-        await http.get(Uri.parse('$baseURL/legal_opinions'), headers: {
-      'Accept': 'application/json',
-    });
+    try {
+      final response = await http.get(
+        Uri.parse('$baseURL/legal_opinions'),
+        headers: {'Accept': 'application/json'},
+      );
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body)['legals'];
+      print('Raw JSON Response Length: ${response.body.length}');
 
-      setState(() {
-        _legalOpinions =
-            data.map((item) => LegalOpinion.fromJson(item)).toList();
-      });
-    } else {
-      print('Failed to load latest legal opinions');
-      print('Response status code: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      if (response.statusCode == 200) {
+        if (response.body.isEmpty) {
+          print("API returned an empty response!");
+          return;
+        }
+
+        // ✅ Trim response and check if JSON is complete
+        final String cleanedBody = response.body.trim();
+
+        if (!cleanedBody.startsWith('{') || !cleanedBody.endsWith('}')) {
+          print('Error: JSON response is incomplete or corrupted.');
+          print(
+              'Raw JSON (first 1000 chars): ${cleanedBody.substring(0, 1000)}');
+          return;
+        }
+
+        try {
+          final Map<String, dynamic> decodedBody = jsonDecode(cleanedBody);
+
+          if (!decodedBody.containsKey('legals')) {
+            print("Error: Missing 'legals' key in response.");
+            return;
+          }
+
+          final List<dynamic> data = decodedBody['legals'];
+
+          setState(() {
+            _legalOpinions =
+                data.map((item) => LegalOpinion.fromJson(item)).toList();
+          });
+
+          print("Successfully loaded ${_legalOpinions.length} legal opinions.");
+        } catch (e) {
+          print("Error decoding JSON: $e");
+
+          // 🔥 Print the section where JSON parsing fails
+          final int errorIndex = cleanedBody.indexOf('"link":', 11627);
+          if (errorIndex != -1) {
+            print(
+                "🔍 JSON near error: ${cleanedBody.substring(errorIndex - 50, errorIndex + 50)}");
+          }
+        }
+      } else {
+        print('Failed to load legal opinions. Status: ${response.statusCode}');
+        print('Response Body: ${response.body}');
+      }
+    } catch (e) {
+      print('Error fetching legal opinions: $e');
     }
   }
+
+  // ORIGINAL Legal Opinions
+  // Future<void> fetchLegalOpinions() async {
+  //   final response =
+  //       await http.get(Uri.parse('$baseURL/legal_opinions'), headers: {
+  //     'Accept': 'application/json',
+  //     // 'Content-Type': 'application/json',
+  //   });
+
+  //   if (response.statusCode == 200) {
+  //     if (response.body.isEmpty) {
+  //       print("API returned an empty response!");
+  //       return;
+  //     }
+
+  //     try {
+  //       final decodedBody = jsonDecode(response.body);
+  //       if (decodedBody == null || !decodedBody.containsKey('legals')) {
+  //         print("Invalid JSON format: Missing 'legals' key");
+  //         return;
+  //       }
+
+  //       final List<dynamic> data = decodedBody['legals'];
+
+  //       setState(() {
+  //         _legalOpinions =
+  //             data.map((item) => LegalOpinion.fromJson(item)).toList();
+  //       });
+  //     } catch (e) {
+  //       print("Error decoding JSON: $e");
+  //     }
+  //   } else {
+  //     print('Failed to load latest legal opinions');
+  //     print('Response status code: ${response.statusCode}');
+  //     print('Response body: ${response.body}');
+  //   }
+
+  // if (response.statusCode == 200) {
+  //   final List<dynamic> data =
+  //       json.decode(response.body.toString())['legals'];
+
+  //   setState(() {
+  //     _legalOpinions =
+  //         data.map((item) => LegalOpinion.fromJson(item)).toList();
+  //   });
+  // } else {
+  //   print('Failed to load latest legal opinions');
+  //   print('Response status code: ${response.statusCode}');
+  //   print('Response body: ${response.body}');
+  // }
+  // }
 
   Future<void> fetchLatestIssuances() async {
     final response = await http.get(
@@ -407,7 +496,6 @@ void _stopListening() {
                                       }, Duration(milliseconds: 500));
                                     },
                                   ),
-
                                   Positioned(
                                     right: 0,
                                     bottom: 0,
@@ -459,30 +547,29 @@ void _stopListening() {
     );
   }
 
- Widget _buildSearchResultsContainer() {
-  if (isSearching) {
-    // Show a circular progress indicator while searching
-    return Center(
-      child: CircularProgressIndicator(),
-    );
-  } else if (showNoMatchFound) {
-    return Center(
-      child: Text('No match found', style: TextStyle(fontFamily: 'Poppins')),
-    );
-  } else if (searchResults.isNotEmpty) {
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          _buildSearchResults(searchResults, searchInput),
-          SizedBox(height: 20),
-        ],
-      ),
-    );
-  } else {
-    return _buildRecentSearchesContainer();
+  Widget _buildSearchResultsContainer() {
+    if (isSearching) {
+      // Show a circular progress indicator while searching
+      return Center(
+        child: CircularProgressIndicator(),
+      );
+    } else if (showNoMatchFound) {
+      return Center(
+        child: Text('No match found', style: TextStyle(fontFamily: 'Poppins')),
+      );
+    } else if (searchResults.isNotEmpty) {
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            _buildSearchResults(searchResults, searchInput),
+            SizedBox(height: 20),
+          ],
+        ),
+      );
+    } else {
+      return _buildRecentSearchesContainer();
+    }
   }
-}
-
 
   Widget _buildRecentSearchesContainer() {
     List<Map<String, dynamic>> containerInfo = [
@@ -531,71 +618,69 @@ void _stopListening() {
     ];
 
     return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      isListening
-          ? Container(
-              margin: EdgeInsets.all(8),
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.5),
-                    spreadRadius: 2,
-                    blurRadius: 5,
-                    offset: Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  WaveWidget(
-                    config: CustomConfig(
-                      gradients: [
-                        [Colors.red, Colors.redAccent],
-                        [Colors.redAccent, Colors.red],
-                      ],
-                      durations: [3500, 2000],
-                      heightPercentages: [0.25, 0.3],
-                      blur: MaskFilter.blur(
-                        BlurStyle.solid,
-                        10,
-                      ),
-                      gradientBegin: Alignment.bottomLeft,
-                      gradientEnd: Alignment.topRight,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        isListening
+            ? Container(
+                margin: EdgeInsets.all(8),
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.5),
+                      spreadRadius: 2,
+                      blurRadius: 5,
+                      offset: Offset(0, 3),
                     ),
-                    waveAmplitude: 1,
-                    size: Size(50, double.infinity),
-                  ),
-                  SizedBox(width: 16),
-                  Text(
-                    'Listening...',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                      fontFamily: 'Poppins'
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : SizedBox.shrink(),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                'Browse All',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'Poppins'
+                  ],
                 ),
-              ),
-            ),
-          GridView.count(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    WaveWidget(
+                      config: CustomConfig(
+                        gradients: [
+                          [Colors.red, Colors.redAccent],
+                          [Colors.redAccent, Colors.red],
+                        ],
+                        durations: [3500, 2000],
+                        heightPercentages: [0.25, 0.3],
+                        blur: MaskFilter.blur(
+                          BlurStyle.solid,
+                          10,
+                        ),
+                        gradientBegin: Alignment.bottomLeft,
+                        gradientEnd: Alignment.topRight,
+                      ),
+                      waveAmplitude: 1,
+                      size: Size(50, double.infinity),
+                    ),
+                    SizedBox(width: 16),
+                    Text(
+                      'Listening...',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                          fontFamily: 'Poppins'),
+                    ),
+                  ],
+                ),
+              )
+            : SizedBox.shrink(),
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            'Browse All',
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Poppins'),
+          ),
+        ),
+        GridView.count(
           shrinkWrap: true,
           physics: NeverScrollableScrollPhysics(),
           crossAxisCount: 2,
@@ -622,13 +707,11 @@ void _stopListening() {
                         Text(
                           item['name'],
                           style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            fontFamily: 'Poppins'
-                          ),
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              fontFamily: 'Poppins'),
                           textAlign: TextAlign.center,
-                          
                         ),
                       ],
                     ),
@@ -643,58 +726,59 @@ void _stopListening() {
     );
   }
 
-  Widget _buildSearchResults(List<SearchResult> searchResults, String searchInput) {
-  if (searchInput.isEmpty) {
-    return SizedBox.shrink();
-  }
-  return searchResults.isNotEmpty
-      ? SingleChildScrollView(
-          child: Column(
-            children: [
-              ListView.builder(
-                shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
-                itemCount: searchResults.length,
-                itemBuilder: (context, index) {
-                  final SearchResult result = searchResults[index];
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => DetailsScreen(
-                            searchResult: result,
+  Widget _buildSearchResults(
+      List<SearchResult> searchResults, String searchInput) {
+    if (searchInput.isEmpty) {
+      return SizedBox.shrink();
+    }
+    return searchResults.isNotEmpty
+        ? SingleChildScrollView(
+            child: Column(
+              children: [
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: NeverScrollableScrollPhysics(),
+                  itemCount: searchResults.length,
+                  itemBuilder: (context, index) {
+                    final SearchResult result = searchResults[index];
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => DetailsScreen(
+                              searchResult: result,
+                            ),
                           ),
+                        );
+                      },
+                      child: Container(
+                        margin: EdgeInsets.symmetric(vertical: 8),
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withOpacity(0.5),
+                              spreadRadius: 2,
+                              blurRadius: 5,
+                              offset: Offset(0, 3),
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                    child: Container(
-                      margin: EdgeInsets.symmetric(vertical: 8),
-                      padding: EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.5),
-                            spreadRadius: 2,
-                            blurRadius: 5,
-                            offset: Offset(0, 3),
-                          ),
-                        ],
+                        child: RichText(
+                          text: highlightTextWithOriginalTitle(
+                              result.title, searchInput),
+                        ),
                       ),
-                      child: RichText(
-                        text: highlightTextWithOriginalTitle(
-                            result.title, searchInput),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        )
-      : Center(child: Text('No results found'));
+                    );
+                  },
+                ),
+              ],
+            ),
+          )
+        : Center(child: Text('No results found'));
   }
 
   TextSpan highlightTextWithOriginalTitle(String text, String highlight) {
@@ -711,89 +795,92 @@ void _stopListening() {
     for (int match in matches) {
       spans.add(TextSpan(
         text: text.substring(prevIndex, match),
-        style: TextStyle(color: Colors.black, fontSize: 15, fontFamily: 'Poppins'),
+        style:
+            TextStyle(color: Colors.black, fontSize: 15, fontFamily: 'Poppins'),
       ));
       spans.add(TextSpan(
         text: text.substring(match, match + highlight.length),
-        style: TextStyle(color: Colors.blue, fontSize: 15, fontFamily: 'Poppins'),
+        style:
+            TextStyle(color: Colors.blue, fontSize: 15, fontFamily: 'Poppins'),
       ));
       prevIndex = match + highlight.length;
     }
     spans.add(TextSpan(
       text: text.substring(prevIndex),
-      style: TextStyle(color: Colors.black, fontSize: 15, fontFamily: 'Poppins'),
+      style:
+          TextStyle(color: Colors.black, fontSize: 15, fontFamily: 'Poppins'),
     ));
 
     return TextSpan(children: spans);
   }
 
   void _handleSearch() {
-  String searchInput = _searchController.text.toLowerCase();
+    String searchInput = _searchController.text.toLowerCase();
 
-  print('Search Input: $searchInput');
-  print('Searching: ${_searchController.text}');
+    print('Search Input: $searchInput');
+    print('Searching: ${_searchController.text}');
 
- if (searchInput.length < 3) {
-    // Reset search results and show a message to the user to input more characters
-    setState(() {
-      this.searchResults = [];
-      this.searchInput = '';
-      showNoMatchFound = false;
-    });
-    return; // Exit the method
+    if (searchInput.length < 3) {
+      // Reset search results and show a message to the user to input more characters
+      setState(() {
+        this.searchResults = [];
+        this.searchInput = '';
+        showNoMatchFound = false;
+      });
+      return; // Exit the method
+    }
+    if (searchInput.isNotEmpty) {
+      setState(() {
+        isSearching = true;
+        showNoMatchFound = false;
+      });
+      List<dynamic> allData = [
+        ..._memoCirculars,
+        ..._presidentialDirectives,
+        ..._republicActs,
+        ..._legalOpinions,
+        ..._jointCirculars,
+        ..._draftIssuances,
+        ..._latestIssuances,
+      ];
+
+      List<SearchResult> searchResults = allData
+          .where((data) =>
+              (data is MemoCircular ||
+                  data is PresidentialDirective ||
+                  data is RepublicAct ||
+                  data is LegalOpinion ||
+                  data is JointCircular ||
+                  data is DraftIssuance ||
+                  data is LatestIssuance) &&
+              (data.issuance.title.toLowerCase().contains(searchInput) ||
+                  data.issuance.keyword.toLowerCase().contains(searchInput)))
+          .map((data) =>
+              SearchResult(data.issuance.title, data.issuance.urlLink))
+          .where((result) => result.title.isNotEmpty)
+          .toList();
+
+      setState(() {
+        this.searchResults = searchResults;
+        this.searchInput = searchInput;
+        isSearching = false;
+        showNoMatchFound = searchResults.isEmpty;
+      });
+    } else {
+      setState(() {
+        this.searchResults = [];
+        this.searchInput = '';
+        showNoMatchFound = false;
+      });
+    }
   }
-  if (searchInput.isNotEmpty) {
-    setState(() {
-      isSearching = true;
-      showNoMatchFound = false;
-    });
-    List<dynamic> allData = [
-      ..._memoCirculars,
-      ..._presidentialDirectives,
-      ..._republicActs,
-      ..._legalOpinions,
-      ..._jointCirculars,
-      ..._draftIssuances,
-      ..._latestIssuances,
-    ];
 
-    List<SearchResult> searchResults = allData
-        .where((data) =>
-            (data is MemoCircular ||
-                data is PresidentialDirective ||
-                data is RepublicAct ||
-                data is LegalOpinion ||
-                data is JointCircular ||
-                data is DraftIssuance ||
-                data is LatestIssuance) &&
-            (data.issuance.title.toLowerCase().contains(searchInput) ||
-                data.issuance.keyword.toLowerCase().contains(searchInput)))
-        .map((data) => SearchResult(data.issuance.title, data.issuance.urlLink))
-        .where((result) => result.title.isNotEmpty)
-        .toList();
-
-    setState(() {
-      this.searchResults = searchResults;
-      this.searchInput = searchInput;
-      isSearching = false;
-      showNoMatchFound = searchResults.isEmpty;
-    });
-  } else {
-    setState(() {
-      this.searchResults = [];
-      this.searchInput = '';
-      showNoMatchFound = false;
-    });
+  void _debounce(VoidCallback callback, Duration duration) {
+    if (_debounceTimer != null) {
+      _debounceTimer!.cancel();
+    }
+    _debounceTimer = Timer(duration, callback);
   }
-}
-
-void _debounce(VoidCallback callback, Duration duration) {
-  if (_debounceTimer != null) {
-    _debounceTimer!.cancel();
-  }
-  _debounceTimer = Timer(duration, callback);
-}
-
 
   // Method to handle the tapped recent search item
   void _handleRecentSearchTap(String value) {

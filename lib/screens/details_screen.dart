@@ -74,7 +74,8 @@ class DetailsScreen extends StatelessWidget {
               ),
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Column(
                     mainAxisAlignment:
                         MainAxisAlignment.center, // Add this line
@@ -99,6 +100,7 @@ class DetailsScreen extends StatelessWidget {
                         thickness: 2,
                         height: 2,
                       ),
+                      SizedBox(height: 10),
                       Text(
                         content,
                         style: TextStyle(
@@ -128,6 +130,27 @@ class DetailsScreen extends StatelessWidget {
 
   Future<void> downloadAndSavePdf(
       BuildContext context, String url, String title) async {
+    if (url.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Download Error'),
+            content: Text('No valid PDF link available for download.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -151,14 +174,13 @@ class DetailsScreen extends StatelessWidget {
     try {
       final appDir = await getExternalStorageDirectory();
       final directoryPath = '${appDir!.path}/PDFs';
-      final sanitizedTitle = sanitizeFilename(title); // Sanitize the title
-      final truncatedTitle =
-          truncateTitle(sanitizedTitle); // Truncate the title
+      final sanitizedTitle = sanitizeFilename(title);
+      final truncatedTitle = truncateTitle(sanitizedTitle);
       final filePath = '$directoryPath/$truncatedTitle.pdf';
 
       final file = File(filePath);
       if (await file.exists()) {
-        Navigator.of(context).pop(); // Close the loading dialog
+        Navigator.of(context).pop();
         showDialog(
           context: context,
           builder: (BuildContext context) {
@@ -180,6 +202,7 @@ class DetailsScreen extends StatelessWidget {
         return;
       }
 
+      print('Downloading PDF from URL: $url');
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
@@ -189,11 +212,9 @@ class DetailsScreen extends StatelessWidget {
         }
 
         await file.writeAsBytes(response.bodyBytes);
-
         print('PDF downloaded and saved at: $filePath');
 
-        Navigator.of(context).pop(); // Close the loading dialog
-
+        Navigator.of(context).pop();
         showDialog(
           context: context,
           builder: (BuildContext context) {
@@ -216,7 +237,7 @@ class DetailsScreen extends StatelessWidget {
       }
     } catch (e) {
       print('Error downloading PDF: $e');
-      Navigator.of(context).pop(); // Close the loading dialog
+      Navigator.of(context).pop();
     }
   }
 

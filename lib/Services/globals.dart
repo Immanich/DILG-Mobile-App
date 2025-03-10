@@ -11,7 +11,7 @@ void errorSnackBar(BuildContext context, String text) {
     SnackBar(
       backgroundColor: Colors.red,
       content: Text(text),
-      duration: const Duration(seconds: 2), // Change the duration as needed
+      duration: const Duration(seconds: 2),
     ),
   );
 }

@@ -22,7 +22,6 @@ class _LoginScreenState extends State<LoginScreen> {
   TextEditingController _passwordController = TextEditingController();
   bool _isLoggingIn = false;
   bool _isPasswordVisible = false;
-  
 
   @override
   void initState() {
@@ -61,57 +60,57 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   loginPressed() async {
-  setState(() {
-    _isLoggingIn = true;
-  });
-  if (_emailController.text.isNotEmpty &&
-      _passwordController.text.isNotEmpty) {
-    try {
-      http.Response response = await AuthServices.login(
-        _emailController.text,
-        _passwordController.text,
-      );
-
-      Map responseMap = jsonDecode(response.body);
-
-      print("Server Response: $responseMap");
-
-      if (response.statusCode == 200) {
-        final token = responseMap['token'];
-
-        await AuthServices.storeToken(token);
-        await AuthServices.storeAuthenticated(true);
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+    setState(() {
+      _isLoggingIn = true;
+    });
+    if (_emailController.text.isNotEmpty &&
+        _passwordController.text.isNotEmpty) {
+      try {
+        http.Response response = await AuthServices.login(
+          _emailController.text,
+          _passwordController.text,
         );
-      } else {
+
+        Map responseMap = jsonDecode(response.body);
+
+        print("Server Response: $responseMap");
+
+        if (response.statusCode == 200) {
+          final token = responseMap['token'];
+
+          await AuthServices.storeToken(token);
+          await AuthServices.storeAuthenticated(true);
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(responseMap['message'] ?? 'Login failed'),
+            ),
+          );
+        }
+      } catch (error, stackTrace) {
+        print("Error during login: $error");
+        print("Stack trace: $stackTrace");
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(responseMap['message'] ?? 'Login failed'),
+            content: Text('Incorrect email or password'),
           ),
         );
       }
-    } catch (error, stackTrace) {
-      print("Error during login: $error");
-      print("Stack trace: $stackTrace");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Incorrect email or password'),
-        ),
-      );
+    } else {
+      setState(() {
+        emailError = 'Enter your email';
+        passwordError = 'Enter your password';
+      });
     }
-  } else {
     setState(() {
-      emailError = 'Enter your email';
-      passwordError = 'Enter your password';
+      _isLoggingIn = false;
     });
   }
-  setState(() {
-    _isLoggingIn = false;
-  });
-}
 
   @override
   void dispose() {
@@ -121,129 +120,131 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
-Widget build(BuildContext context) {
-  return Scaffold(
-    body: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image(
-                  width: 80.0,
-                  height: 80.0,
-                  image: AssetImage('assets/Tngkrw.png'),
-                  fit: BoxFit.cover,
-                ),
-                SizedBox(width: 10), // Adjust the spacing between the logo and text
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'TANGKARAW',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    Text(
-                      'DILG - Bohol Province',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            SizedBox(height: 15),
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border.all(color: Color.fromARGB(255, 0, 0, 255)),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    'Sign in to your Account',
-                    style: TextStyle(
-                      fontSize: 15,
-                    ),
-                    textAlign: TextAlign.center,
+                  Image(
+                    width: 80.0,
+                    height: 80.0,
+                    image: AssetImage('assets/Tngkrw.png'),
+                    fit: BoxFit.cover,
                   ),
-                  SizedBox(height: 8),
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: InputDecoration(
-                      labelText: 'Email',
-                      errorText: emailError.isNotEmpty ? emailError : null,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  TextField(
-                    controller: _passwordController,
-                    obscureText: !_isPasswordVisible,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      errorText:
-                          passwordError.isNotEmpty ? passwordError : null,
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _isPasswordVisible
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _isPasswordVisible = !_isPasswordVisible;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Row(
+                  SizedBox(
+                      width:
+                          10), // Adjust the spacing between the logo and text
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Checkbox(
-                        value: rememberMe,
-                        onChanged: (value) {
-                          setState(() {
-                            rememberMe = value!;
-                          });
-                        },
+                      Text(
+                        'TANGKARAW',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      Text('Remember Me'),
-                      Spacer(),
-                      ElevatedButton(
-                        onPressed: _isLoggingIn ? null : loginPressed,
-                        child: _isLoggingIn
-                            ? CircularProgressIndicator()
-                            : Text('Log in'),
+                      Text(
+                        'DILG - Bohol Province',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
                 ],
               ),
-            ),
-            SizedBox(height: 14),
-            Text(
-              '© TANGKARAW DILG-Bohol Province 2024',
-              style: TextStyle(
-                fontSize: 10,
-                color: const Color.fromARGB(255, 6, 0, 0),
+              SizedBox(height: 15),
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Color.fromARGB(255, 0, 0, 255)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Sign in to your Account',
+                      style: TextStyle(
+                        fontSize: 15,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 8),
+                    TextFormField(
+                      controller: _emailController,
+                      decoration: InputDecoration(
+                        labelText: 'Email',
+                        errorText: emailError.isNotEmpty ? emailError : null,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    TextField(
+                      controller: _passwordController,
+                      obscureText: !_isPasswordVisible,
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        errorText:
+                            passwordError.isNotEmpty ? passwordError : null,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _isPasswordVisible
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _isPasswordVisible = !_isPasswordVisible;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: rememberMe,
+                          onChanged: (value) {
+                            setState(() {
+                              rememberMe = value!;
+                            });
+                          },
+                        ),
+                        Text('Remember Me'),
+                        Spacer(),
+                        ElevatedButton(
+                          onPressed: _isLoggingIn ? null : loginPressed,
+                          child: _isLoggingIn
+                              ? CircularProgressIndicator()
+                              : Text('Log in'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              SizedBox(height: 14),
+              Text(
+                '© TANGKARAW DILG-Bohol Province 2024',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: const Color.fromARGB(255, 6, 0, 0),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 }

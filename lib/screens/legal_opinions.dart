@@ -23,6 +23,8 @@ class _LegalOpinionsState extends State<LegalOpinions> {
   List<LegalOpinion> _filteredLegalOpinions = [];
   bool _hasInternetConnection = true;
   bool _isLoading = true;
+  bool _isFetchingMore = false;
+  int _currentPage = 1;
 
   @override
   void initState() {
@@ -91,35 +93,188 @@ class _LegalOpinionsState extends State<LegalOpinions> {
   }
 
   Future<void> fetchLegalOpinions() async {
-    String? token = await AuthServices.getToken(); // Retrieve stored token
+    String? token = await AuthServices.getToken();
     if (token == null) {
       print('No auth token found.');
       return;
     }
 
-    final response = await http.get(
-      Uri.parse('$baseURL/legal_opinions'),
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
+    try {
+      final response = await http.get(
+        Uri.parse('$baseURL/legal_opinions'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body)['legals'];
+      // ✅ Debug: Print response length
+      print('Raw JSON Response Length: ${response.body.length}');
 
+      // ✅ Ensure response is fully received
+      if (response.statusCode == 200) {
+        String jsonString = response.body.trim(); // Remove unwanted spaces
+
+        // ✅ Validate JSON structure
+        if (!jsonString.startsWith('{') || !jsonString.endsWith('}')) {
+          print('Error: JSON response is incomplete or corrupted.');
+          return;
+        }
+
+        final Map<String, dynamic> responseData = json.decode(jsonString);
+
+        if (responseData.containsKey('legals') &&
+            responseData['legals'] != null) {
+          final dynamic legalsData = responseData['legals'];
+
+          if (legalsData is List) {
+            setState(() {
+              _legalOpinions = legalsData
+                  .map((item) => LegalOpinion.fromJson(item))
+                  .toList();
+              _filteredLegalOpinions = _legalOpinions;
+            });
+          } else {
+            print('Error: "legals" key is not a list.');
+          }
+        } else {
+          print('Error: API response is missing "legals" or it is null.');
+        }
+      } else {
+        print('Failed to load legal opinions. Status: ${response.statusCode}');
+        print('Response Body: ${response.body}');
+      }
+    } catch (e) {
+      print('Error fetching legal opinions: $e');
+    } finally {
       setState(() {
-        _legalOpinions =
-            data.map((item) => LegalOpinion.fromJson(item)).toList();
-        _filteredLegalOpinions = _legalOpinions;
         _isLoading = false;
       });
-    } else {
-      print('Failed to load latest legal opinions');
-      print('Response status code: ${response.statusCode}');
-      print('Response body: ${response.body}');
     }
   }
+
+  //main fetch method
+  // Future<void> fetchLegalOpinions() async {
+  //   String? token = await AuthServices.getToken(); // Retrieve stored token
+  //   if (token == null) {
+  //     print('No auth token found.');
+  //     return;
+  //   }
+
+  //   final response = await http.get(
+  //     Uri.parse('$baseURL/legal_opinions'),
+  //     headers: {
+  //       'Accept': 'application/json',
+  //       'Authorization': 'Bearer $token',
+  //     },
+  //   );
+
+  //   if (response.statusCode == 200) {
+  //     final List<dynamic> data = json.decode(response.body)['legals'];
+
+  //     setState(() {
+  //       _legalOpinions =
+  //           data.map((item) => LegalOpinion.fromJson(item)).toList();
+  //       _filteredLegalOpinions = _legalOpinions;
+  //       _isLoading = false;
+  //     });
+  //   } else {
+  //     print('Failed to load latest legal opinions');
+  //     print('Response status code: ${response.statusCode}');
+  //     print('Response body: ${response.body}');
+  //   }
+  // }
+
+  // Future<void> fetchLegalOpinions() async {
+  //   String? token = await AuthServices.getToken(); // Retrieve stored token
+  //   if (token == null) {
+  //     print('No auth token found.');
+  //     return;
+  //   }
+
+  //   final response = await http.get(
+  //     Uri.parse('$baseURL/legal_opinions'),
+  //     headers: {
+  //       'Accept': 'application/json',
+  //       'Authorization': 'Bearer $token',
+  //     },
+  //   );
+
+  //   print("Response Status Code: ${response.statusCode}");
+  //   // print("Response First 500 Characters: ${response.body.substring(0, 500)}");
+
+  //   if (response.statusCode == 200) {
+  //     if (isJson(response.body)) {
+  //       try {
+  //         // final decoded = json.decode(response.body);
+  //         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+  //         if (decoded is Map<String, dynamic> &&
+  //             decoded.containsKey('legals')) {
+  //           final List<dynamic> data = decoded['legals'];
+
+  //           setState(() {
+  //             _legalOpinions =
+  //                 data.map((item) => LegalOpinion.fromJson(item)).toList();
+  //             _filteredLegalOpinions = _legalOpinions;
+  //             _isLoading = false;
+  //           });
+  //         } else {
+  //           print('Unexpected JSON structure: $decoded');
+  //         }
+  //       } catch (e) {
+  //         print("Error parsing JSON: $e");
+  //       }
+  //     } else {
+  //       print("Response is not valid JSON.");
+  //     }
+  //   } else {
+  //     print('Failed to load latest legal opinions');
+  //     print('Response status code: ${response.statusCode}');
+  //     print('Response body: ${response.body}');
+  //   }
+  // }
+
+  bool isJson(String str) {
+    try {
+      json.decode(str);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Future<void> fetchLegalOpinions() async {
+  //   String? token = await AuthServices.getToken(); // Retrieve stored token
+  //   if (token == null) {
+  //     print('No auth token found.');
+  //     return;
+  //   }
+
+  //   final response = await http.get(
+  //     Uri.parse('$baseURL/legal_opinions'),
+  //     headers: {
+  //       'Accept': 'application/json',
+  //       'Authorization': 'Bearer $token',
+  //     },
+  //   );
+
+  //   if (response.statusCode == 200) {
+  //     print(response.body);
+
+  //     final List<dynamic> data = json.decode(response.body)['legals'];
+
+  //     setState(() {
+  //       _legalOpinions =
+  //           data.map((item) => LegalOpinion.fromJson(item)).toList();
+  //       _filteredLegalOpinions = _legalOpinions;
+  //       _isLoading = false;
+  //     });
+  //   } else {
+  //     print('Failed to load latest legal opinions');
+  //     print('Response status code: ${response.statusCode}');
+  //     print('Response body: ${response.body}');
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -176,6 +331,7 @@ class _LegalOpinionsState extends State<LegalOpinions> {
     );
   }
 
+  // ORIG WIDGET
   Widget _buildBody() {
     if (_isLoading) {
       return Center(
@@ -220,10 +376,10 @@ class _LegalOpinionsState extends State<LegalOpinions> {
                 contentPadding: EdgeInsets.symmetric(vertical: 16.0),
               ),
               style: TextStyle(fontSize: 16.0),
-              // onChanged: (value) {
-              //   // Call the function to filter the list based on the search query
-              //   _filterLegalOpinions(value); // Corrected method call
-              // },
+              onChanged: (value) {
+                // Call the function to filter the list based on the search query
+                _filterLegalOpinions(value); // Corrected method call
+              },
             ),
           ),
 
@@ -277,7 +433,7 @@ class _LegalOpinionsState extends State<LegalOpinions> {
                                               _filteredLegalOpinions[index]
                                                   .title,
                                               _searchController.text),
-                                          maxLines: 1,
+                                          maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
@@ -290,12 +446,12 @@ class _LegalOpinionsState extends State<LegalOpinions> {
                                                       .reference !=
                                                   'N/A'
                                               ? highlightMatches(
-                                                  'Ref #: ${_filteredLegalOpinions[index].reference}',
+                                                  '${_filteredLegalOpinions[index].reference}',
                                                   _searchController.text)
                                               : TextSpan(text: ''),
                                           style: TextStyle(
                                             fontSize: 12,
-                                            color: Colors.grey,
+                                            color: Colors.grey[700],
                                           ),
                                         ),
                                         Text(
@@ -306,7 +462,7 @@ class _LegalOpinionsState extends State<LegalOpinions> {
                                               : '',
                                           style: TextStyle(
                                             fontSize: 12,
-                                            color: Colors.grey,
+                                            color: Colors.grey[700],
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
@@ -314,18 +470,14 @@ class _LegalOpinionsState extends State<LegalOpinions> {
                                     ),
                                   ),
                                   SizedBox(width: 16.0),
-                                  // Text(
-                                  //   _filteredLegalOpinions[index].date != 'N/A'
-                                  //       ? DateFormat('MMMM dd, yyyy').format(
-                                  //           DateTime.parse(
-                                  //               _filteredLegalOpinions[index]
-                                  //                   .date))
-                                  //       : '',
-                                  //   style: TextStyle(
-                                  //     fontSize: 12,
-                                  //     fontStyle: FontStyle.italic,
-                                  //   ),
-                                  // ),
+                                  Text(
+                                    _formatDate(
+                                        _filteredLegalOpinions[index].date),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -339,53 +491,44 @@ class _LegalOpinionsState extends State<LegalOpinions> {
     );
   }
 
-  void _navigateToDetailsPage(BuildContext context, LegalOpinion issuance) {
+  String _formatDate(String? dateString) {
+    if (dateString == null ||
+        dateString.isEmpty ||
+        dateString == 'N/A' ||
+        dateString == 'No Date') {
+      return 'No Date'; // Show a placeholder if the date is invalid
+    }
+    return dateString; // Return the original date string without parsing
+  }
+
+  void _navigateToDetailsPage(BuildContext context, LegalOpinion legal) {
     // Define the expected date format
     DateFormat inputFormat = DateFormat('MMMM dd, yyyy');
 
     // Try to parse the date string
     DateTime? parsedDate;
     try {
-      parsedDate = inputFormat.parse(issuance.date);
+      parsedDate = inputFormat.parse(legal.date);
     } catch (e) {
       print('Error parsing date: $e');
     }
 
-    // Format the parsed date for display (if parsing was successful)
-    String formattedDate = parsedDate != null
-        ? DateFormat('MMMM dd, yyyy').format(parsedDate)
-        : 'Invalid date';
+    String formattedDate = _formatDate(legal.date);
+    print(legal.link);
 
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => DetailsScreen(
-          title: issuance.title,
-          content:
-              'Ref #: ${issuance.reference != 'N/A' ? issuance.reference + '\n' : ''}'
+          title: legal.title,
+          content: '${legal.reference != 'N/A' ? legal.reference + '\n' : ''}'
               '${formattedDate != 'Invalid date' ? formattedDate + '\n' : ''}',
-          pdfUrl: issuance.link,
-          type: getTypeForDownload(issuance.category), // This is issuance.type
+          pdfUrl: legal.downloadLink,
+          type: getTypeForDownload(legal.category),
         ),
       ),
     );
   }
-
-  // void _navigateToDetailsPage(BuildContext context, LegalOpinion issuance) {
-  //   Navigator.push(
-  //     context,
-  //     MaterialPageRoute(
-  //       builder: (context) => DetailsScreen(
-  //         title: issuance.title,
-  //         content:
-  //             'Ref #: ${issuance.reference != 'N/A' ? issuance.reference + '\n' : ''}'
-  //             '${issuance.date != 'N/A' ? DateFormat('MMMM dd, yyyy').format(DateTime.parse(issuance.date)) + '\n' : ''}',
-  //         pdfUrl: issuance.link,
-  //         type: getTypeForDownload(issuance.category), //THIS IS issuance.type
-  //       ),
-  //     ),
-  //   );
-  // }
 
   void _filterLegalOpinions(String query) {
     setState(() {
@@ -393,8 +536,10 @@ class _LegalOpinionsState extends State<LegalOpinions> {
       _filteredLegalOpinions = _legalOpinions.where((opinion) {
         final title = opinion.title.toLowerCase();
         final referenceNo = opinion.reference.toLowerCase();
+        final extractedTexts = opinion.extractedTexts?.toLowerCase() ?? '';
         return title.contains(query.toLowerCase()) ||
-            referenceNo.contains(query.toLowerCase());
+            referenceNo.contains(query.toLowerCase()) ||
+            extractedTexts.contains(query.toLowerCase());
       }).toList();
     });
   }
