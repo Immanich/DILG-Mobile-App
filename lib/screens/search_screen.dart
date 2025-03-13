@@ -304,67 +304,87 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
+  //ORIGINAL fetching of LO
   Future<void> fetchLegalOpinions() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseURL/legal_opinions'),
-        headers: {'Accept': 'application/json'},
-      );
+    final response =
+        await http.get(Uri.parse('$baseURL/legal_opinions'), headers: {
+      'Accept': 'application/json',
+    });
 
-      print('Raw JSON Response Length: ${response.body.length}');
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body)['legals'];
 
-      if (response.statusCode == 200) {
-        if (response.body.isEmpty) {
-          print("API returned an empty response!");
-          return;
-        }
-
-        // ✅ Trim response and check if JSON is complete
-        final String cleanedBody = response.body.trim();
-
-        if (!cleanedBody.startsWith('{') || !cleanedBody.endsWith('}')) {
-          print('Error: JSON response is incomplete or corrupted.');
-          print(
-              'Raw JSON (first 1000 chars): ${cleanedBody.substring(0, 1000)}');
-          return;
-        }
-
-        try {
-          final Map<String, dynamic> decodedBody = jsonDecode(cleanedBody);
-
-          if (!decodedBody.containsKey('legals')) {
-            print("Error: Missing 'legals' key in response.");
-            return;
-          }
-
-          final List<dynamic> data = decodedBody['legals'];
-
-          setState(() {
-            _legalOpinions =
-                data.map((item) => LegalOpinion.fromJson(item)).toList();
-          });
-
-          print("Successfully loaded ${_legalOpinions.length} legal opinions.");
-        } catch (e) {
-          print("Error decoding JSON: $e");
-
-          // 🔥 Print the section where JSON parsing fails
-          final int errorIndex = cleanedBody.indexOf('"link":', 11627);
-          if (errorIndex != -1) {
-            print(
-                "🔍 JSON near error: ${cleanedBody.substring(errorIndex - 50, errorIndex + 50)}");
-          }
-        }
-      } else {
-        print('Failed to load legal opinions. Status: ${response.statusCode}');
-        print('Response Body: ${response.body}');
-      }
-    } catch (e) {
-      print('Error fetching legal opinions: $e');
+      setState(() {
+        _legalOpinions =
+            data.map((item) => LegalOpinion.fromJson(item)).toList();
+      });
+    } else {
+      print('Failed to load latest legal opinions');
+      print('Response status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
     }
   }
 
-  // ORIGINAL Legal Opinions
+  // Future<void> fetchLegalOpinions() async {
+  //   try {
+  //     final response = await http.get(
+  //       Uri.parse('$baseURL/legal_opinions'),
+  //       headers: {'Accept': 'application/json'},
+  //     );
+
+  //     print('Raw JSON Response Length: ${response.body.length}');
+
+  //     if (response.statusCode == 200) {
+  //       if (response.body.isEmpty) {
+  //         print("API returned an empty response!");
+  //         return;
+  //       }
+
+  //       // ✅ Trim response and check if JSON is complete
+  //       final String cleanedBody = response.body.trim();
+
+  //       if (!cleanedBody.startsWith('{') || !cleanedBody.endsWith('}')) {
+  //         print('Error: JSON response is incomplete or corrupted.');
+  //         print(
+  //             'Raw JSON (first 1000 chars): ${cleanedBody.substring(0, 1000)}');
+  //         return;
+  //       }
+
+  //       try {
+  //         final Map<String, dynamic> decodedBody = jsonDecode(cleanedBody);
+
+  //         if (!decodedBody.containsKey('legals')) {
+  //           print("Error: Missing 'legals' key in response.");
+  //           return;
+  //         }
+
+  //         final List<dynamic> data = decodedBody['legals'];
+
+  //         setState(() {
+  //           _legalOpinions =
+  //               data.map((item) => LegalOpinion.fromJson(item)).toList();
+  //         });
+
+  //         print("Successfully loaded ${_legalOpinions.length} legal opinions.");
+  //       } catch (e) {
+  //         print("Error decoding JSON: $e");
+
+  //         // 🔥 Print the section where JSON parsing fails
+  //         final int errorIndex = cleanedBody.indexOf('"link":', 11627);
+  //         if (errorIndex != -1) {
+  //           print(
+  //               "🔍 JSON near error: ${cleanedBody.substring(errorIndex - 50, errorIndex + 50)}");
+  //         }
+  //       }
+  //     } else {
+  //       print('Failed to load legal opinions. Status: ${response.statusCode}');
+  //       print('Response Body: ${response.body}');
+  //     }
+  //   } catch (e) {
+  //     print('Error fetching legal opinions: $e');
+  //   }
+  // }
+
   // Future<void> fetchLegalOpinions() async {
   //   final response =
   //       await http.get(Uri.parse('$baseURL/legal_opinions'), headers: {

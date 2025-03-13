@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:DILGDOCS/Services/auth_services.dart';
 import 'package:DILGDOCS/Services/globals.dart';
 import 'package:DILGDOCS/models/legal_opinions.dart';
 import 'package:DILGDOCS/screens/file_utils.dart';
@@ -17,14 +16,19 @@ class LegalOpinions extends StatefulWidget {
   _LegalOpinionsState createState() => _LegalOpinionsState();
 }
 
-class _LegalOpinionsState extends State<LegalOpinions> {
+class _LegalOpinionsState extends State<LegalOpinions>
+    with SingleTickerProviderStateMixin {
   TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
   List<LegalOpinion> _legalOpinions = [];
   List<LegalOpinion> _filteredLegalOpinions = [];
   bool _hasInternetConnection = true;
   bool _isLoading = true;
-  bool _isFetchingMore = false;
   int _currentPage = 1;
+  bool _isFetchingMore = false;
+  bool _hasMoreData = true;
 
   @override
   void initState() {
@@ -42,6 +46,41 @@ class _LegalOpinionsState extends State<LegalOpinions> {
       } else {
         _loadContentIfConnected();
       }
+    });
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 200) {
+        fetchLegalOpinions(
+            isLoadMore: true); // Load more when reaching the bottom
+      }
+    });
+
+    _animationController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 100),
+      lowerBound: 0.1,
+      upperBound: 1.0,
+    );
+
+    _scaleAnimation =
+        Tween<double>(begin: 1.0, end: 0.9).animate(_animationController);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToTop() {
+    _animationController.forward().then((_) {
+      _animationController.reverse(); // Restore the button size
+      _scrollController.animateTo(
+        0,
+        duration: Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
     });
   }
 
@@ -67,8 +106,8 @@ class _LegalOpinionsState extends State<LegalOpinions> {
 
   Future<void> _openWifiSettings() async {
     const url = 'app-settings:';
-    if (await canLaunchUrl(url as Uri)) {
-      await launchUrl(url as Uri);
+    if (await canLaunch(url)) {
+      await launch(url);
     } else {
       // Provide a generic message for both Android and iOS users
       showDialog(
@@ -92,175 +131,59 @@ class _LegalOpinionsState extends State<LegalOpinions> {
     }
   }
 
-  Future<void> fetchLegalOpinions() async {
-    String? token = await AuthServices.getToken();
-    if (token == null) {
-      print('No auth token found.');
-      return;
-    }
+  Future<void> fetchLegalOpinions({bool isLoadMore = false}) async {
+    if (_isFetchingMore || !_hasMoreData) return; // Prevent multiple calls
+
+    setState(() {
+      _isFetchingMore = true;
+    });
 
     try {
       final response = await http.get(
-        Uri.parse('$baseURL/legal_opinions'),
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+        Uri.parse('$baseURL/legal_opinions?page=$_currentPage&per_page=100'),
+        headers: {'Accept': 'application/json'},
       );
 
-      // ✅ Debug: Print response length
-      print('Raw JSON Response Length: ${response.body.length}');
-
-      // ✅ Ensure response is fully received
       if (response.statusCode == 200) {
-        String jsonString = response.body.trim(); // Remove unwanted spaces
+        final responseData = json.decode(response.body);
+        final List<dynamic> data = responseData['legals'];
 
-        // ✅ Validate JSON structure
-        if (!jsonString.startsWith('{') || !jsonString.endsWith('}')) {
-          print('Error: JSON response is incomplete or corrupted.');
-          return;
-        }
-
-        final Map<String, dynamic> responseData = json.decode(jsonString);
-
-        if (responseData.containsKey('legals') &&
-            responseData['legals'] != null) {
-          final dynamic legalsData = responseData['legals'];
-
-          if (legalsData is List) {
-            setState(() {
-              _legalOpinions = legalsData
-                  .map((item) => LegalOpinion.fromJson(item))
-                  .toList();
-              _filteredLegalOpinions = _legalOpinions;
-            });
+        setState(() {
+          if (isLoadMore) {
+            _legalOpinions.addAll(
+                data.map((item) => LegalOpinion.fromJson(item)).toList());
           } else {
-            print('Error: "legals" key is not a list.');
+            _legalOpinions =
+                data.map((item) => LegalOpinion.fromJson(item)).toList();
           }
-        } else {
-          print('Error: API response is missing "legals" or it is null.');
-        }
+          _filteredLegalOpinions = _legalOpinions;
+
+          _hasMoreData = _currentPage < responseData['pagination']['last_page'];
+          if (_hasMoreData) _currentPage++;
+        });
       } else {
-        print('Failed to load legal opinions. Status: ${response.statusCode}');
-        print('Response Body: ${response.body}');
+        print('Failed to load legal opinions');
       }
-    } catch (e) {
-      print('Error fetching legal opinions: $e');
+    } catch (error) {
+      print('Error fetching data: $error');
     } finally {
       setState(() {
+        _isFetchingMore = false;
         _isLoading = false;
       });
     }
   }
 
-  //main fetch method
+  //ORIGINAL FETCH METHOD OF LEGAL OPINIONS
   // Future<void> fetchLegalOpinions() async {
-  //   String? token = await AuthServices.getToken(); // Retrieve stored token
-  //   if (token == null) {
-  //     print('No auth token found.');
-  //     return;
-  //   }
-
   //   final response = await http.get(
   //     Uri.parse('$baseURL/legal_opinions'),
   //     headers: {
   //       'Accept': 'application/json',
-  //       'Authorization': 'Bearer $token',
   //     },
   //   );
 
   //   if (response.statusCode == 200) {
-  //     final List<dynamic> data = json.decode(response.body)['legals'];
-
-  //     setState(() {
-  //       _legalOpinions =
-  //           data.map((item) => LegalOpinion.fromJson(item)).toList();
-  //       _filteredLegalOpinions = _legalOpinions;
-  //       _isLoading = false;
-  //     });
-  //   } else {
-  //     print('Failed to load latest legal opinions');
-  //     print('Response status code: ${response.statusCode}');
-  //     print('Response body: ${response.body}');
-  //   }
-  // }
-
-  // Future<void> fetchLegalOpinions() async {
-  //   String? token = await AuthServices.getToken(); // Retrieve stored token
-  //   if (token == null) {
-  //     print('No auth token found.');
-  //     return;
-  //   }
-
-  //   final response = await http.get(
-  //     Uri.parse('$baseURL/legal_opinions'),
-  //     headers: {
-  //       'Accept': 'application/json',
-  //       'Authorization': 'Bearer $token',
-  //     },
-  //   );
-
-  //   print("Response Status Code: ${response.statusCode}");
-  //   // print("Response First 500 Characters: ${response.body.substring(0, 500)}");
-
-  //   if (response.statusCode == 200) {
-  //     if (isJson(response.body)) {
-  //       try {
-  //         // final decoded = json.decode(response.body);
-  //         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-  //         if (decoded is Map<String, dynamic> &&
-  //             decoded.containsKey('legals')) {
-  //           final List<dynamic> data = decoded['legals'];
-
-  //           setState(() {
-  //             _legalOpinions =
-  //                 data.map((item) => LegalOpinion.fromJson(item)).toList();
-  //             _filteredLegalOpinions = _legalOpinions;
-  //             _isLoading = false;
-  //           });
-  //         } else {
-  //           print('Unexpected JSON structure: $decoded');
-  //         }
-  //       } catch (e) {
-  //         print("Error parsing JSON: $e");
-  //       }
-  //     } else {
-  //       print("Response is not valid JSON.");
-  //     }
-  //   } else {
-  //     print('Failed to load latest legal opinions');
-  //     print('Response status code: ${response.statusCode}');
-  //     print('Response body: ${response.body}');
-  //   }
-  // }
-
-  bool isJson(String str) {
-    try {
-      json.decode(str);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // Future<void> fetchLegalOpinions() async {
-  //   String? token = await AuthServices.getToken(); // Retrieve stored token
-  //   if (token == null) {
-  //     print('No auth token found.');
-  //     return;
-  //   }
-
-  //   final response = await http.get(
-  //     Uri.parse('$baseURL/legal_opinions'),
-  //     headers: {
-  //       'Accept': 'application/json',
-  //       'Authorization': 'Bearer $token',
-  //     },
-  //   );
-
-  //   if (response.statusCode == 200) {
-  //     print(response.body);
-
   //     final List<dynamic> data = json.decode(response.body)['legals'];
 
   //     setState(() {
@@ -312,6 +235,14 @@ class _LegalOpinionsState extends State<LegalOpinions> {
                 ],
               ),
             ),
+      floatingActionButton: ScaleTransition(
+        scale: _scaleAnimation,
+        child: FloatingActionButton(
+          onPressed: _scrollToTop,
+          child: Icon(Icons.arrow_upward, color: Colors.white),
+          backgroundColor: Colors.blue[800],
+        ),
+      ),
     );
   }
 
@@ -331,29 +262,66 @@ class _LegalOpinionsState extends State<LegalOpinions> {
     );
   }
 
-  // ORIG WIDGET
+  // Widget _buildBody() {
+  //   return Column(
+  //     children: [
+  //       Container(
+  //         margin: EdgeInsets.fromLTRB(8, 16, 8, 0),
+  //         padding: EdgeInsets.symmetric(horizontal: 16.0),
+  //         decoration: BoxDecoration(
+  //           color: Colors.white,
+  //           borderRadius: BorderRadius.circular(20),
+  //           boxShadow: [
+  //             BoxShadow(
+  //               color: Colors.grey.withOpacity(0.5),
+  //               spreadRadius: 2,
+  //               blurRadius: 5,
+  //               offset: Offset(0, 3), // changes position of shadow
+  //             ),
+  //           ],
+  //         ),
+  //         child: TextField(
+  //           controller: _searchController,
+  //           decoration: InputDecoration(
+  //             hintText: 'Search...',
+  //             prefixIcon: Icon(Icons.search, color: Colors.grey),
+  //             border: InputBorder.none,
+  //             contentPadding: EdgeInsets.symmetric(vertical: 16.0),
+  //           ),
+  //           style: TextStyle(fontSize: 16.0),
+  //           onChanged: (value) {
+  //             // Call the function to filter the list based on the search query
+  //             _filterLegalOpinions(value); // Corrected method call
+  //           },
+  //         ),
+  //       ),
+
+  //       // List of Legal Opinions
+  //       Expanded(
+  //         child: ListView.builder(
+  //           controller: _scrollController,
+  //           itemCount: _filteredLegalOpinions.length + 1, // Extra for loader
+  //           itemBuilder: (context, index) {
+  //             if (index == _filteredLegalOpinions.length) {
+  //               return _hasMoreData
+  //                   ? Center(child: CircularProgressIndicator())
+  //                   : SizedBox.shrink();
+  //             }
+  //             return _buildLegalOpinionItem(_filteredLegalOpinions[index]);
+  //           },
+  //         ),
+  //       ),
+  //     ],
+  //   );
+  // }
+
   Widget _buildBody() {
-    if (_isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16.0), // Adjust the spacing as needed
-            Text(
-              'Loading...',
-              style: TextStyle(fontSize: 18.0),
-            ),
-          ],
-        ),
-      );
-    }
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Search Input
+          // Search Bar Container
           Container(
-            margin: EdgeInsets.only(top: 16.0),
+            margin: EdgeInsets.fromLTRB(8, 16, 8, 0),
             padding: EdgeInsets.symmetric(horizontal: 16.0),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -363,7 +331,7 @@ class _LegalOpinionsState extends State<LegalOpinions> {
                   color: Colors.grey.withOpacity(0.5),
                   spreadRadius: 2,
                   blurRadius: 5,
-                  offset: Offset(0, 3), // changes position of shadow
+                  offset: Offset(0, 3),
                 ),
               ],
             ),
@@ -377,135 +345,304 @@ class _LegalOpinionsState extends State<LegalOpinions> {
               ),
               style: TextStyle(fontSize: 16.0),
               onChanged: (value) {
-                // Call the function to filter the list based on the search query
-                _filterLegalOpinions(value); // Corrected method call
+                _filterLegalOpinions(value);
               },
             ),
           ),
 
-          // Display the filtered legal opinions or "No legal opinions found" message
-          _filteredLegalOpinions.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                      'No legal opinions found',
-                      style: TextStyle(fontSize: 18.0),
-                    ),
-                  ),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(height: 16.0),
-                    for (int index = 0;
-                        index < _filteredLegalOpinions.length;
-                        index++)
-                      InkWell(
-                        onTap: () {
-                          _navigateToDetailsPage(
-                              context, _filteredLegalOpinions[index]);
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(
-                                  color:
-                                      const Color.fromARGB(255, 203, 201, 201),
-                                  width: 1.0),
-                            ),
-                          ),
-                          child: Card(
-                            elevation: 0,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.article, color: Colors.blue[900]),
-                                  SizedBox(width: 16.0),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text.rich(
-                                          highlightMatches(
-                                              _filteredLegalOpinions[index]
-                                                  .title,
-                                              _searchController.text),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                        SizedBox(height: 4.0),
-                                        Text.rich(
-                                          _filteredLegalOpinions[index]
-                                                      .reference !=
-                                                  'N/A'
-                                              ? highlightMatches(
-                                                  '${_filteredLegalOpinions[index].reference}',
-                                                  _searchController.text)
-                                              : TextSpan(text: ''),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[700],
-                                          ),
-                                        ),
-                                        Text(
-                                          _filteredLegalOpinions[index]
-                                                      .category !=
-                                                  'N/A'
-                                              ? 'Category: ${_filteredLegalOpinions[index].category}'
-                                              : '',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[700],
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  SizedBox(width: 16.0),
-                                  Text(
-                                    _formatDate(
-                                        _filteredLegalOpinions[index].date),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+          SizedBox(height: 10), // Space between search bar and list
+
+          // Legal Opinions List
+          SizedBox(
+            height: MediaQuery.of(context).size.height *
+                0.75, // Adjust height as needed
+            child: ListView.builder(
+              controller: _scrollController,
+              itemCount: _filteredLegalOpinions.length + 1,
+              itemBuilder: (context, index) {
+                if (index == _filteredLegalOpinions.length) {
+                  return _hasMoreData
+                      ? Center(child: CircularProgressIndicator())
+                      : SizedBox.shrink();
+                }
+                return _buildLegalOpinionItem(_filteredLegalOpinions[index]);
+              },
+            ),
+          ),
         ],
       ),
     );
   }
+
+  Widget _buildLegalOpinionItem(LegalOpinion opinion) {
+    return InkWell(
+      onTap: () => _navigateToDetailsPage(context, opinion),
+      child: Card(
+        margin: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start, // Prevents stretching
+            children: [
+              // Icon Container
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue[900]?.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.article, color: Colors.blue[900], size: 28),
+              ),
+
+              SizedBox(width: 12), // Spacing between icon and text
+
+              // Text Content
+              Expanded(
+                // Ensures text does not overflow
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text.rich(
+                      highlightMatches(opinion.title, _searchController.text),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis, // Prevents overflow
+                    ),
+                    SizedBox(height: 4),
+                    if (opinion.reference != 'N/A')
+                      Text.rich(
+                        highlightMatches(
+                            opinion.reference, _searchController.text),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    SizedBox(height: 4),
+                    if (opinion.category != 'N/A')
+                      Text.rich(
+                        highlightMatches('Category: ${opinion.category}',
+                            _searchController.text),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text.rich(
+                        highlightMatches(
+                            _formatDate(opinion.date), _searchController.text),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.blueGrey[600],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  //enhanced design original
+  // Widget _buildBody() {
+  //   if (_isLoading) {
+  //     return Center(
+  //       child: Column(
+  //         mainAxisAlignment: MainAxisAlignment.center,
+  //         children: [
+  //           CircularProgressIndicator(),
+  //           SizedBox(height: 16.0), // Adjust the spacing as needed
+  //           Text(
+  //             'Loading...',
+  //             style: TextStyle(fontSize: 18.0),
+  //           ),
+  //         ],
+  //       ),
+  //     );
+  //   }
+  //   return SingleChildScrollView(
+  //     controller: _scrollController,
+  //     child: Column(
+  //       children: [
+  //         // Search Input
+  //         Container(
+  //           // margin: EdgeInsets.fromLTRB(left: 8, top: 16, right: 8, bottom: 0),
+  //           margin: EdgeInsets.fromLTRB(8, 16, 8, 0),
+  //           padding: EdgeInsets.symmetric(horizontal: 16.0),
+  //           decoration: BoxDecoration(
+  //             color: Colors.white,
+  //             borderRadius: BorderRadius.circular(20),
+  //             boxShadow: [
+  //               BoxShadow(
+  //                 color: Colors.grey.withOpacity(0.5),
+  //                 spreadRadius: 2,
+  //                 blurRadius: 5,
+  //                 offset: Offset(0, 3), // changes position of shadow
+  //               ),
+  //             ],
+  //           ),
+  //           child: TextField(
+  //             controller: _searchController,
+  //             decoration: InputDecoration(
+  //               hintText: 'Search...',
+  //               prefixIcon: Icon(Icons.search, color: Colors.grey),
+  //               border: InputBorder.none,
+  //               contentPadding: EdgeInsets.symmetric(vertical: 16.0),
+  //             ),
+  //             style: TextStyle(fontSize: 16.0),
+  //             onChanged: (value) {
+  //               // Call the function to filter the list based on the search query
+  //               _filterLegalOpinions(value); // Corrected method call
+  //             },
+  //           ),
+  //         ),
+
+  //         // Display the filtered legal opinions or "No legal opinions found" message
+  //         _filteredLegalOpinions.isEmpty
+  //             ? Center(
+  //                 child: Padding(
+  //                   padding: const EdgeInsets.all(16.0),
+  //                   child: Text(
+  //                     'No legal opinions found',
+  //                     style: TextStyle(fontSize: 18.0),
+  //                   ),
+  //                 ),
+  //               )
+  //             : Column(
+  //                 crossAxisAlignment: CrossAxisAlignment.start,
+  //                 children: [
+  //                   SizedBox(height: 12.0),
+  //                   for (int index = 0;
+  //                       index < _filteredLegalOpinions.length;
+  //                       index++)
+  //                     InkWell(
+  //                       onTap: () {
+  //                         _navigateToDetailsPage(
+  //                             context, _filteredLegalOpinions[index]);
+  //                       },
+  //                       child: Container(
+  //                         decoration: BoxDecoration(),
+  //                         child: Card(
+  //                           elevation: 3, // Adds a subtle shadow effect
+  //                           shape: RoundedRectangleBorder(
+  //                             borderRadius:
+  //                                 BorderRadius.circular(12), // Rounded corners
+  //                           ),
+  //                           margin: EdgeInsets.symmetric(
+  //                               horizontal: 10, vertical: 6), // Better spacing
+  //                           child: Padding(
+  //                             padding: const EdgeInsets.all(12.0),
+  //                             child: Row(
+  //                               crossAxisAlignment: CrossAxisAlignment.start,
+  //                               children: [
+  //                                 Container(
+  //                                   padding: EdgeInsets.all(8),
+  //                                   decoration: BoxDecoration(
+  //                                     color: Colors.blue[900]?.withOpacity(
+  //                                         0.1), // Light background
+  //                                     borderRadius: BorderRadius.circular(10),
+  //                                   ),
+  //                                   child: Icon(Icons.article,
+  //                                       color: Colors.blue[900], size: 28),
+  //                                 ),
+  //                                 SizedBox(width: 16.0),
+  //                                 Expanded(
+  //                                   child: Column(
+  //                                     crossAxisAlignment:
+  //                                         CrossAxisAlignment.start,
+  //                                     children: [
+  //                                       Text.rich(
+  //                                         highlightMatches(
+  //                                             _filteredLegalOpinions[index]
+  //                                                 .title,
+  //                                             _searchController.text),
+  //                                         maxLines: 2,
+  //                                         overflow: TextOverflow.ellipsis,
+  //                                         style: TextStyle(
+  //                                           fontWeight: FontWeight.bold,
+  //                                           fontSize: 16, // Slightly larger
+  //                                         ),
+  //                                       ),
+  //                                       SizedBox(height: 6.0),
+  //                                       if (_filteredLegalOpinions[index]
+  //                                               .reference !=
+  //                                           'N/A')
+  //                                         Text.rich(
+  //                                           highlightMatches(
+  //                                               '${_filteredLegalOpinions[index].reference}',
+  //                                               _searchController.text),
+  //                                           style: TextStyle(
+  //                                             fontSize: 13,
+  //                                             color: Colors.grey[
+  //                                                 600], // Softer text color
+  //                                           ),
+  //                                         ),
+  //                                       Text(
+  //                                         _filteredLegalOpinions[index]
+  //                                                     .category !=
+  //                                                 'N/A'
+  //                                             ? 'Category: ${_filteredLegalOpinions[index].category}'
+  //                                             : '',
+  //                                         style: TextStyle(
+  //                                           fontSize: 13,
+  //                                           color: Colors.grey[600],
+  //                                           overflow: TextOverflow.ellipsis,
+  //                                         ),
+  //                                       ),
+  //                                       SizedBox(height: 6.0),
+  //                                       Row(
+  //                                         children: [
+  //                                           Spacer(), // Pushes the date to the right
+  //                                           Text(
+  //                                             _formatDate(
+  //                                                 _filteredLegalOpinions[index]
+  //                                                     .date),
+  //                                             style: TextStyle(
+  //                                               fontSize: 12,
+  //                                               fontStyle: FontStyle.italic,
+  //                                               color: Colors.blueGrey[
+  //                                                   600], // Softer color for the date
+  //                                             ),
+  //                                           ),
+  //                                         ],
+  //                                       ),
+  //                                     ],
+  //                                   ),
+  //                                 ),
+  //                               ],
+  //                             ),
+  //                           ),
+  //                         ),
+  //                       ),
+  //                     ),
+  //                 ],
+  //               ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   String _formatDate(String? dateString) {
     if (dateString == null ||
         dateString.isEmpty ||
         dateString == 'N/A' ||
         dateString == 'No Date') {
-      return 'No Date'; // Show a placeholder if the date is invalid
+      return 'No Date';
     }
-    return dateString; // Return the original date string without parsing
+    return dateString;
   }
 
   void _navigateToDetailsPage(BuildContext context, LegalOpinion legal) {
-    // Define the expected date format
     DateFormat inputFormat = DateFormat('MMMM dd, yyyy');
 
-    // Try to parse the date string
     DateTime? parsedDate;
     try {
       parsedDate = inputFormat.parse(legal.date);
@@ -530,15 +667,35 @@ class _LegalOpinionsState extends State<LegalOpinions> {
     );
   }
 
+  // Future<void> _filterLegalOpinions(String query) async {
+  //   final response = await http.get(
+  //     Uri.parse('$baseURL/legal-opinions/search?query=$query'),
+  //     // $baseURL/legal_opinions?page=$_currentPage&per_page=100
+  //   );
+
+  //   if (response.statusCode == 200) {
+  //     final List<dynamic> data = json.decode(response.body);
+  //     setState(() {
+  //       _filteredLegalOpinions =
+  //           data.map((json) => LegalOpinion.fromJson(json)).toList();
+  //     });
+  //   } else {
+  //     print('Failed to load search results');
+  //   }
+  // }
+
   void _filterLegalOpinions(String query) {
     setState(() {
-      // Filter the legal opinions based on the search query
       _filteredLegalOpinions = _legalOpinions.where((opinion) {
         final title = opinion.title.toLowerCase();
         final referenceNo = opinion.reference.toLowerCase();
+        final category = opinion.category.toLowerCase();
+        final date = opinion.date.toLowerCase();
         final extractedTexts = opinion.extractedTexts?.toLowerCase() ?? '';
         return title.contains(query.toLowerCase()) ||
             referenceNo.contains(query.toLowerCase()) ||
+            category.contains(query.toLowerCase()) ||
+            date.contains(query.toLowerCase()) ||
             extractedTexts.contains(query.toLowerCase());
       }).toList();
     });
@@ -584,9 +741,8 @@ TextSpan highlightMatches(String text, String query) {
 
   return TextSpan(children: textSpans);
 }
-// }
 
-// void _navigateToSelectedPage(BuildContext context, int index) {}
+void _navigateToSelectedPage(BuildContext context, int index) {}
 
 // import 'dart:convert';
 // import 'package:DILGDOCS/Services/globals.dart';
@@ -606,12 +762,19 @@ TextSpan highlightMatches(String text, String query) {
 //   _LegalOpinionsState createState() => _LegalOpinionsState();
 // }
 
-// class _LegalOpinionsState extends State<LegalOpinions> {
+// class _LegalOpinionsState extends State<LegalOpinions>
+//     with SingleTickerProviderStateMixin {
 //   TextEditingController _searchController = TextEditingController();
+//   final ScrollController _scrollController = ScrollController();
+//   late AnimationController _animationController;
+//   late Animation<double> _scaleAnimation;
 //   List<LegalOpinion> _legalOpinions = [];
 //   List<LegalOpinion> _filteredLegalOpinions = [];
 //   bool _hasInternetConnection = true;
 //   bool _isLoading = true;
+//   int _currentPage = 1;
+//   bool _isFetchingMore = false;
+//   bool _hasMoreData = true;
 
 //   @override
 //   void initState() {
@@ -629,6 +792,41 @@ TextSpan highlightMatches(String text, String query) {
 //       } else {
 //         _loadContentIfConnected();
 //       }
+//     });
+//     _scrollController.addListener(() {
+//       if (_scrollController.position.pixels >=
+//           _scrollController.position.maxScrollExtent - 200) {
+//         fetchLegalOpinions(
+//             isLoadMore: true); // Load more when reaching the bottom
+//       }
+//     });
+
+//     _animationController = AnimationController(
+//       vsync: this,
+//       duration: Duration(milliseconds: 100),
+//       lowerBound: 0.1,
+//       upperBound: 1.0,
+//     );
+
+//     _scaleAnimation =
+//         Tween<double>(begin: 1.0, end: 0.9).animate(_animationController);
+//   }
+
+//   @override
+//   void dispose() {
+//     _scrollController.dispose();
+//     _animationController.dispose();
+//     super.dispose();
+//   }
+
+//   void _scrollToTop() {
+//     _animationController.forward().then((_) {
+//       _animationController.reverse(); // Restore the button size
+//       _scrollController.animateTo(
+//         0,
+//         duration: Duration(milliseconds: 500),
+//         curve: Curves.easeInOut,
+//       );
 //     });
 //   }
 
@@ -654,7 +852,7 @@ TextSpan highlightMatches(String text, String query) {
 
 //   Future<void> _openWifiSettings() async {
 //     const url = 'app-settings:';
-//     if (await canLaunchUrl(url)) {
+//     if (await canLaunch(url)) {
 //       await launch(url);
 //     } else {
 //       // Provide a generic message for both Android and iOS users
@@ -679,29 +877,72 @@ TextSpan highlightMatches(String text, String query) {
 //     }
 //   }
 
-//   Future<void> fetchLegalOpinions() async {
-//     final response = await http.get(
-//       Uri.parse('$baseURL/legal_opinions'),
-//       headers: {
-//         'Accept': 'application/json',
-//       },
-//     );
+//   Future<void> fetchLegalOpinions({bool isLoadMore = false}) async {
+//     if (_isFetchingMore || !_hasMoreData) return; // Prevent multiple calls
 
-//     if (response.statusCode == 200) {
-//       final List<dynamic> data = json.decode(response.body)['legals'];
+//     setState(() {
+//       _isFetchingMore = true;
+//     });
 
+//     try {
+//       final response = await http.get(
+//         Uri.parse('$baseURL/legal_opinions?page=$_currentPage&per_page=100'),
+//         headers: {'Accept': 'application/json'},
+//       );
+
+//       if (response.statusCode == 200) {
+//         final responseData = json.decode(response.body);
+//         final List<dynamic> data = responseData['legals'];
+
+//         setState(() {
+//           if (isLoadMore) {
+//             _legalOpinions.addAll(
+//                 data.map((item) => LegalOpinion.fromJson(item)).toList());
+//           } else {
+//             _legalOpinions =
+//                 data.map((item) => LegalOpinion.fromJson(item)).toList();
+//           }
+//           _filteredLegalOpinions = _legalOpinions;
+
+//           _hasMoreData = _currentPage < responseData['pagination']['last_page'];
+//           if (_hasMoreData) _currentPage++;
+//         });
+//       } else {
+//         print('Failed to load legal opinions');
+//       }
+//     } catch (error) {
+//       print('Error fetching data: $error');
+//     } finally {
 //       setState(() {
-//         _legalOpinions =
-//             data.map((item) => LegalOpinion.fromJson(item)).toList();
-//         _filteredLegalOpinions = _legalOpinions;
+//         _isFetchingMore = false;
 //         _isLoading = false;
 //       });
-//     } else {
-//       print('Failed to load latest legal opinions');
-//       print('Response status code: ${response.statusCode}');
-//       print('Response body: ${response.body}');
 //     }
 //   }
+
+//   // Future<void> fetchLegalOpinions() async {
+//   //   final response = await http.get(
+//   //     Uri.parse('$baseURL/legal_opinions'),
+//   //     headers: {
+//   //       'Accept': 'application/json',
+//   //     },
+//   //   );
+
+//   //   if (response.statusCode == 200) {
+//   //     final List<dynamic> data = json.decode(response.body)['legals'];
+
+//   //     setState(() {
+//   //       _legalOpinions =
+//   //           data.map((item) => LegalOpinion.fromJson(item)).toList();
+//   //       _filteredLegalOpinions = _legalOpinions;
+//   //       _isLoading = false;
+//   //     });
+//   //   } else {
+//   //     print('Failed to load latest legal opinions');
+//   //     print('Response status code: ${response.statusCode}');
+//   //     print('Response body: ${response.body}');
+//   //   }
+//   // }
 
 //   @override
 //   Widget build(BuildContext context) {
@@ -739,6 +980,14 @@ TextSpan highlightMatches(String text, String query) {
 //                 ],
 //               ),
 //             ),
+//       floatingActionButton: ScaleTransition(
+//         scale: _scaleAnimation,
+//         child: FloatingActionButton(
+//           onPressed: _scrollToTop,
+//           child: Icon(Icons.arrow_upward, color: Colors.white),
+//           backgroundColor: Colors.blue[800],
+//         ),
+//       ),
 //     );
 //   }
 
@@ -759,242 +1008,470 @@ TextSpan highlightMatches(String text, String query) {
 //   }
 
 //   Widget _buildBody() {
-//     if (_isLoading) {
-//       return Center(
-//         child: Column(
-//           mainAxisAlignment: MainAxisAlignment.center,
-//           children: [
-//             CircularProgressIndicator(),
-//             SizedBox(height: 16.0), // Adjust the spacing as needed
-//             Text(
-//               'Loading...',
-//               style: TextStyle(fontSize: 18.0),
-//             ),
-//           ],
-//         ),
-//       );
-//     }
-//     return SingleChildScrollView(
-//       child: Column(
-//         children: [
-//           // Search Input
-//           Container(
-//             margin: EdgeInsets.only(top: 16.0),
-//             padding: EdgeInsets.symmetric(horizontal: 16.0),
-//             decoration: BoxDecoration(
-//               color: Colors.white,
-//               borderRadius: BorderRadius.circular(20),
-//               boxShadow: [
-//                 BoxShadow(
-//                   color: Colors.grey.withOpacity(0.5),
-//                   spreadRadius: 2,
-//                   blurRadius: 5,
-//                   offset: Offset(0, 3), // changes position of shadow
-//                 ),
-//               ],
-//             ),
-//             child: TextField(
-//               controller: _searchController,
-//               decoration: InputDecoration(
-//                 hintText: 'Search...',
-//                 prefixIcon: Icon(Icons.search, color: Colors.grey),
-//                 border: InputBorder.none,
-//                 contentPadding: EdgeInsets.symmetric(vertical: 16.0),
+//     return Column(
+//       children: [
+//         Container(
+//           margin: EdgeInsets.fromLTRB(8, 16, 8, 0),
+//           padding: EdgeInsets.symmetric(horizontal: 16.0),
+//           decoration: BoxDecoration(
+//             color: Colors.white,
+//             borderRadius: BorderRadius.circular(20),
+//             boxShadow: [
+//               BoxShadow(
+//                 color: Colors.grey.withOpacity(0.5),
+//                 spreadRadius: 2,
+//                 blurRadius: 5,
+//                 offset: Offset(0, 3), // changes position of shadow
 //               ),
-//               style: TextStyle(fontSize: 16.0),
-//               // onChanged: (value) {
-//               //   // Call the function to filter the list based on the search query
-//               //   _filterLegalOpinions(value); // Corrected method call
-//               // },
-//             ),
+//             ],
 //           ),
+//           child: TextField(
+//             controller: _searchController,
+//             decoration: InputDecoration(
+//               hintText: 'Search...',
+//               prefixIcon: Icon(Icons.search, color: Colors.grey),
+//               border: InputBorder.none,
+//               contentPadding: EdgeInsets.symmetric(vertical: 16.0),
+//             ),
+//             style: TextStyle(fontSize: 16.0),
+//             onChanged: (value) {
+//               // Call the function to filter the list based on the search query
+//               _filterLegalOpinions(value); // Corrected method call
+//             },
+//           ),
+//         ),
 
-//           // Display the filtered legal opinions or "No legal opinions found" message
-//           _filteredLegalOpinions.isEmpty
-//               ? Center(
-//                   child: Padding(
-//                     padding: const EdgeInsets.all(16.0),
-//                     child: Text(
-//                       'No legal opinions found',
-//                       style: TextStyle(fontSize: 18.0),
-//                     ),
-//                   ),
-//                 )
-//               : Column(
+//         // List of Legal Opinions
+//         Expanded(
+//           child: ListView.builder(
+//             controller: _scrollController,
+//             itemCount: _filteredLegalOpinions.length + 1, // Extra for loader
+//             itemBuilder: (context, index) {
+//               if (index == _filteredLegalOpinions.length) {
+//                 return _hasMoreData
+//                     ? Center(child: CircularProgressIndicator())
+//                     : SizedBox.shrink();
+//               }
+//               return _buildLegalOpinionItem(_filteredLegalOpinions[index]);
+//             },
+//           ),
+//         ),
+//       ],
+//     );
+//   }
+
+//   // Widget _buildBody() {
+//   //   return ListView.builder(
+//   //     controller: _scrollController,
+//   //     itemCount: _filteredLegalOpinions.length +
+//   //         1, // Extra item for the loading indicator
+//   //     itemBuilder: (context, index) {
+//   //       if (index == _filteredLegalOpinions.length) {
+//   //         return _hasMoreData
+//   //             ? Center(child: CircularProgressIndicator())
+//   //             : SizedBox.shrink();
+//   //       }
+//   //       return _buildLegalOpinionItem(
+//   //           _filteredLegalOpinions[index]); // Your card widget here
+//   //     },
+//   //   );
+//   // }
+
+//   Widget _buildLegalOpinionItem(LegalOpinion opinion) {
+//     return InkWell(
+//       onTap: () => _navigateToDetailsPage(context, opinion),
+//       child: Card(
+//         margin: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+//         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+//         child: Padding(
+//           padding: const EdgeInsets.all(12.0),
+//           child: Row(
+//             crossAxisAlignment: CrossAxisAlignment.start, // Prevents stretching
+//             children: [
+//               // Icon Container
+//               Container(
+//                 padding: EdgeInsets.all(8),
+//                 decoration: BoxDecoration(
+//                   color: Colors.blue[900]?.withOpacity(0.1),
+//                   borderRadius: BorderRadius.circular(10),
+//                 ),
+//                 child: Icon(Icons.article, color: Colors.blue[900], size: 28),
+//               ),
+
+//               SizedBox(width: 12), // Spacing between icon and text
+
+//               // Text Content
+//               Expanded(
+//                 // Ensures text does not overflow
+//                 child: Column(
 //                   crossAxisAlignment: CrossAxisAlignment.start,
 //                   children: [
-//                     SizedBox(height: 16.0),
-//                     for (int index = 0;
-//                         index < _filteredLegalOpinions.length;
-//                         index++)
-//                       InkWell(
-//                         // onTap: () {
-//                         //   _navigateToDetailsPage(
-//                         //       context, _filteredLegalOpinions[index]);
-//                         // },
-//                         child: Container(
-//                           decoration: BoxDecoration(
-//                             border: Border(
-//                               bottom: BorderSide(
-//                                   color:
-//                                       const Color.fromARGB(255, 203, 201, 201),
-//                                   width: 1.0),
-//                             ),
-//                           ),
-//                           child: Card(
-//                             elevation: 0,
-//                             child: Padding(
-//                               padding: const EdgeInsets.all(16.0),
-//                               child: Row(
-//                                 children: [
-//                                   Icon(Icons.article, color: Colors.blue[900]),
-//                                   SizedBox(width: 16.0),
-//                                   // Expanded(
-//                                   //   child: Column(
-//                                   //     crossAxisAlignment:
-//                                   //         CrossAxisAlignment.start,
-//                                   //     children: [
-//                                   //       Text.rich(
-//                                   //         highlightMatches(
-//                                   //             _filteredLegalOpinions[index]
-//                                   //                 .issuance
-//                                   //                 .title,
-//                                   //             _searchController.text),
-//                                   //         maxLines: 1,
-//                                   //         overflow: TextOverflow.ellipsis,
-//                                   //         style: TextStyle(
-//                                   //           fontWeight: FontWeight.bold,
-//                                   //           fontSize: 15,
-//                                   //         ),
-//                                   //       ),
-//                                   //       SizedBox(height: 4.0),
-//                                   //       Text.rich(
-//                                   //         _filteredLegalOpinions[index]
-//                                   //                     .issuance
-//                                   //                     .referenceNo !=
-//                                   //                 'N/A'
-//                                   //             ? highlightMatches(
-//                                   //                 'Ref #: ${_filteredLegalOpinions[index].issuance.referenceNo}',
-//                                   //                 _searchController.text)
-//                                   //             : TextSpan(text: ''),
-//                                   //         style: TextStyle(
-//                                   //           fontSize: 12,
-//                                   //           color: Colors.grey,
-//                                   //         ),
-//                                   //       ),
-//                                   //       Text(
-//                                   //         _filteredLegalOpinions[index]
-//                                   //                     .category !=
-//                                   //                 'N/A'
-//                                   //             ? 'Category: ${_filteredLegalOpinions[index].category}'
-//                                   //             : '',
-//                                   //         style: TextStyle(
-//                                   //           fontSize: 12,
-//                                   //           color: Colors.grey,
-//                                   //           overflow: TextOverflow.ellipsis,
-//                                   //         ),
-//                                   //       ),
-//                                   //     ],
-//                                   //   ),
-//                                   // ),
-//                                   SizedBox(width: 16.0),
-//                                   // Text(
-//                                   //   _filteredLegalOpinions[index]
-//                                   //               .issuance
-//                                   //               .date !=
-//                                   //           'N/A'
-//                                   //       ? DateFormat('MMMM dd, yyyy').format(
-//                                   //           DateTime.parse(
-//                                   //               _filteredLegalOpinions[index]
-//                                   //                   .issuance
-//                                   //                   .date))
-//                                   //       : '',
-//                                   //   style: TextStyle(
-//                                   //     fontSize: 12,
-//                                   //     fontStyle: FontStyle.italic,
-//                                   //   ),
-//                                   // ),
-//                                 ],
-//                               ),
-//                             ),
-//                           ),
+//                     Text.rich(
+//                       highlightMatches(opinion.title, _searchController.text),
+//                       style:
+//                           TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+//                       maxLines: 2,
+//                       overflow: TextOverflow.ellipsis, // Prevents overflow
+//                     ),
+//                     SizedBox(height: 4),
+//                     if (opinion.reference != 'N/A')
+//                       Text.rich(
+//                         highlightMatches(
+//                             opinion.reference, _searchController.text),
+//                         style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+//                         maxLines: 1,
+//                         overflow: TextOverflow.ellipsis,
+//                       ),
+//                     SizedBox(height: 4),
+//                     if (opinion.category != 'N/A')
+//                       Text.rich(
+//                         highlightMatches('Category: ${opinion.category}',
+//                             _searchController.text),
+//                         style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+//                         maxLines: 1,
+//                         overflow: TextOverflow.ellipsis,
+//                       ),
+//                     SizedBox(height: 4),
+//                     Align(
+//                       alignment: Alignment.centerRight,
+//                       child: Text.rich(
+//                         highlightMatches(
+//                             _formatDate(opinion.date), _searchController.text),
+//                         style: TextStyle(
+//                           fontSize: 12,
+//                           fontStyle: FontStyle.italic,
+//                           color: Colors.blueGrey[600],
 //                         ),
 //                       ),
+//                     ),
 //                   ],
 //                 ),
-//         ],
+//               ),
+//             ],
+//           ),
+//         ),
 //       ),
 //     );
 //   }
 
-//   // void _navigateToDetailsPage(BuildContext context, LegalOpinion issuance) {
-//   //   Navigator.push(
-//   //     context,
-//   //     MaterialPageRoute(
-//   //       builder: (context) => DetailsScreen(
-//   //         title: issuance.issuance.title,
-//   //         content:
-//   //             'Ref #: ${issuance.issuance.referenceNo != 'N/A' ? issuance.issuance.referenceNo + '\n' : ''}'
-//   //             '${issuance.issuance.date != 'N/A' ? DateFormat('MMMM dd, yyyy').format(DateTime.parse(issuance.issuance.date)) + '\n' : ''}',
-//   //         pdfUrl: issuance.issuance.urlLink,
-//   //         type: getTypeForDownload(issuance.issuance.type),
+//   // Widget _buildLegalOpinionItem(LegalOpinion opinion) {
+//   //   return InkWell(
+//   //     onTap: () => _navigateToDetailsPage(context, opinion),
+//   //     child: Card(
+//   //       margin: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+//   //       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+//   //       child: Padding(
+//   //         padding: const EdgeInsets.all(12.0),
+//   //         child: Column(
+//   //           crossAxisAlignment: CrossAxisAlignment.start,
+//   //           children: [
+//   //             Row(
+//   //               children: [
+//   //                 Container(
+//   //                   padding: EdgeInsets.all(8),
+//   //                   decoration: BoxDecoration(
+//   //                     color: Colors.blue[900]
+//   //                         ?.withOpacity(0.1), // Light background
+//   //                     borderRadius: BorderRadius.circular(10),
+//   //                   ),
+//   //                   child:
+//   //                       Icon(Icons.article, color: Colors.blue[900], size: 28),
+//   //                 ),
+//   //                 Text(opinion.title,
+//   //                     style:
+//   //                         TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+//   //                 SizedBox(height: 4),
+//   //                 Text('Category: ${opinion.category}',
+//   //                     style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+//   //                 Align(
+//   //                   alignment: Alignment.bottomRight,
+//   //                   child: Text(_formatDate(opinion.date),
+//   //                       style: TextStyle(
+//   //                           fontSize: 12,
+//   //                           fontStyle: FontStyle.italic,
+//   //                           color: Colors.blueGrey[600])),
+//   //                 ),
+//   //               ],
+//   //             ),
+//   //           ],
+//   //         ),
 //   //       ),
 //   //     ),
 //   //   );
 //   // }
 
-// //   void _filterLegalOpinions(String query) {
-// //     setState(() {
-// //       // Filter the legal opinions based on the search query
-// //       _filteredLegalOpinions = _legalOpinions.where((opinion) {
-// //         final title = opinion.issuance.title.toLowerCase();
-// //         final referenceNo = opinion.issuance.referenceNo.toLowerCase();
-// //         return title.contains(query.toLowerCase()) ||
-// //             referenceNo.contains(query.toLowerCase());
-// //       }).toList();
-// //     });
-// //   }
-// // }
+//   //enhanced original
+//   // Widget _buildBody() {
+//   //   if (_isLoading) {
+//   //     return Center(
+//   //       child: Column(
+//   //         mainAxisAlignment: MainAxisAlignment.center,
+//   //         children: [
+//   //           CircularProgressIndicator(),
+//   //           SizedBox(height: 16.0), // Adjust the spacing as needed
+//   //           Text(
+//   //             'Loading...',
+//   //             style: TextStyle(fontSize: 18.0),
+//   //           ),
+//   //         ],
+//   //       ),
+//   //     );
+//   //   }
+//   //   return SingleChildScrollView(
+//   //     controller: _scrollController,
+//   //     child: Column(
+//   //       children: [
+//   //         // Search Input
+//   //         Container(
+//   //           // margin: EdgeInsets.fromLTRB(left: 8, top: 16, right: 8, bottom: 0),
+//   //           margin: EdgeInsets.fromLTRB(8, 16, 8, 0),
+//   //           padding: EdgeInsets.symmetric(horizontal: 16.0),
+//   //           decoration: BoxDecoration(
+//   //             color: Colors.white,
+//   //             borderRadius: BorderRadius.circular(20),
+//   //             boxShadow: [
+//   //               BoxShadow(
+//   //                 color: Colors.grey.withOpacity(0.5),
+//   //                 spreadRadius: 2,
+//   //                 blurRadius: 5,
+//   //                 offset: Offset(0, 3), // changes position of shadow
+//   //               ),
+//   //             ],
+//   //           ),
+//   //           child: TextField(
+//   //             controller: _searchController,
+//   //             decoration: InputDecoration(
+//   //               hintText: 'Search...',
+//   //               prefixIcon: Icon(Icons.search, color: Colors.grey),
+//   //               border: InputBorder.none,
+//   //               contentPadding: EdgeInsets.symmetric(vertical: 16.0),
+//   //             ),
+//   //             style: TextStyle(fontSize: 16.0),
+//   //             onChanged: (value) {
+//   //               // Call the function to filter the list based on the search query
+//   //               _filterLegalOpinions(value); // Corrected method call
+//   //             },
+//   //           ),
+//   //         ),
 
-//   TextSpan highlightMatches(String text, String query) {
-//     if (query.isEmpty) {
-//       return TextSpan(text: text);
+//   //         // Display the filtered legal opinions or "No legal opinions found" message
+//   //         _filteredLegalOpinions.isEmpty
+//   //             ? Center(
+//   //                 child: Padding(
+//   //                   padding: const EdgeInsets.all(16.0),
+//   //                   child: Text(
+//   //                     'No legal opinions found',
+//   //                     style: TextStyle(fontSize: 18.0),
+//   //                   ),
+//   //                 ),
+//   //               )
+//   //             : Column(
+//   //                 crossAxisAlignment: CrossAxisAlignment.start,
+//   //                 children: [
+//   //                   SizedBox(height: 12.0),
+//   //                   for (int index = 0;
+//   //                       index < _filteredLegalOpinions.length;
+//   //                       index++)
+//   //                     InkWell(
+//   //                       onTap: () {
+//   //                         _navigateToDetailsPage(
+//   //                             context, _filteredLegalOpinions[index]);
+//   //                       },
+//   //                       child: Container(
+//   //                         decoration: BoxDecoration(),
+//   //                         child: Card(
+//   //                           elevation: 3, // Adds a subtle shadow effect
+//   //                           shape: RoundedRectangleBorder(
+//   //                             borderRadius:
+//   //                                 BorderRadius.circular(12), // Rounded corners
+//   //                           ),
+//   //                           margin: EdgeInsets.symmetric(
+//   //                               horizontal: 10, vertical: 6), // Better spacing
+//   //                           child: Padding(
+//   //                             padding: const EdgeInsets.all(12.0),
+//   //                             child: Row(
+//   //                               crossAxisAlignment: CrossAxisAlignment.start,
+//   //                               children: [
+//   //                                 Container(
+//   //                                   padding: EdgeInsets.all(8),
+//   //                                   decoration: BoxDecoration(
+//   //                                     color: Colors.blue[900]?.withOpacity(
+//   //                                         0.1), // Light background
+//   //                                     borderRadius: BorderRadius.circular(10),
+//   //                                   ),
+//   //                                   child: Icon(Icons.article,
+//   //                                       color: Colors.blue[900], size: 28),
+//   //                                 ),
+//   //                                 SizedBox(width: 16.0),
+//   //                                 Expanded(
+//   //                                   child: Column(
+//   //                                     crossAxisAlignment:
+//   //                                         CrossAxisAlignment.start,
+//   //                                     children: [
+//   //                                       Text.rich(
+//   //                                         highlightMatches(
+//   //                                             _filteredLegalOpinions[index]
+//   //                                                 .title,
+//   //                                             _searchController.text),
+//   //                                         maxLines: 2,
+//   //                                         overflow: TextOverflow.ellipsis,
+//   //                                         style: TextStyle(
+//   //                                           fontWeight: FontWeight.bold,
+//   //                                           fontSize: 16, // Slightly larger
+//   //                                         ),
+//   //                                       ),
+//   //                                       SizedBox(height: 6.0),
+//   //                                       if (_filteredLegalOpinions[index]
+//   //                                               .reference !=
+//   //                                           'N/A')
+//   //                                         Text.rich(
+//   //                                           highlightMatches(
+//   //                                               '${_filteredLegalOpinions[index].reference}',
+//   //                                               _searchController.text),
+//   //                                           style: TextStyle(
+//   //                                             fontSize: 13,
+//   //                                             color: Colors.grey[
+//   //                                                 600], // Softer text color
+//   //                                           ),
+//   //                                         ),
+//   //                                       Text(
+//   //                                         _filteredLegalOpinions[index]
+//   //                                                     .category !=
+//   //                                                 'N/A'
+//   //                                             ? 'Category: ${_filteredLegalOpinions[index].category}'
+//   //                                             : '',
+//   //                                         style: TextStyle(
+//   //                                           fontSize: 13,
+//   //                                           color: Colors.grey[600],
+//   //                                           overflow: TextOverflow.ellipsis,
+//   //                                         ),
+//   //                                       ),
+//   //                                       SizedBox(height: 6.0),
+//   //                                       Row(
+//   //                                         children: [
+//   //                                           Spacer(), // Pushes the date to the right
+//   //                                           Text(
+//   //                                             _formatDate(
+//   //                                                 _filteredLegalOpinions[index]
+//   //                                                     .date),
+//   //                                             style: TextStyle(
+//   //                                               fontSize: 12,
+//   //                                               fontStyle: FontStyle.italic,
+//   //                                               color: Colors.blueGrey[
+//   //                                                   600], // Softer color for the date
+//   //                                             ),
+//   //                                           ),
+//   //                                         ],
+//   //                                       ),
+//   //                                     ],
+//   //                                   ),
+//   //                                 ),
+//   //                               ],
+//   //                             ),
+//   //                           ),
+//   //                         ),
+//   //                       ),
+//   //                     ),
+//   //                 ],
+//   //               ),
+//   //       ],
+//   //     ),
+//   //   );
+//   // }
+
+//   String _formatDate(String? dateString) {
+//     if (dateString == null ||
+//         dateString.isEmpty ||
+//         dateString == 'N/A' ||
+//         dateString == 'No Date') {
+//       return 'No Date';
 //     }
-
-//     List<TextSpan> textSpans = [];
-
-//     // Create a regular expression pattern with case-insensitive matching
-//     RegExp regex = RegExp(query, caseSensitive: false);
-
-//     // Find all matches of the query in the text
-//     Iterable<Match> matches = regex.allMatches(text);
-
-//     // Start index for slicing the text
-//     int startIndex = 0;
-
-//     // Add text segments with and without highlighting
-//     for (Match match in matches) {
-//       // Add text segment before the match
-//       textSpans.add(TextSpan(text: text.substring(startIndex, match.start)));
-
-//       // Add the matching segment with highlighting
-//       textSpans.add(TextSpan(
-//         text: text.substring(match.start, match.end),
-//         style: TextStyle(
-//           color: Colors.blue,
-//           fontWeight: FontWeight.bold,
-//         ),
-//       ));
-
-//       // Update the start index for the next segment
-//       startIndex = match.end;
-//     }
-
-//     // Add the remaining text segment
-//     textSpans.add(TextSpan(text: text.substring(startIndex)));
-
-//     return TextSpan(children: textSpans);
+//     return dateString;
 //   }
 
-// // void _navigateToSelectedPage(BuildContext context, int index) {}
+//   void _navigateToDetailsPage(BuildContext context, LegalOpinion legal) {
+//     DateFormat inputFormat = DateFormat('MMMM dd, yyyy');
+
+//     DateTime? parsedDate;
+//     try {
+//       parsedDate = inputFormat.parse(legal.date);
+//     } catch (e) {
+//       print('Error parsing date: $e');
+//     }
+
+//     String formattedDate = _formatDate(legal.date);
+//     print(legal.link);
+
+//     Navigator.push(
+//       context,
+//       MaterialPageRoute(
+//         builder: (context) => DetailsScreen(
+//           title: legal.title,
+//           content: '${legal.reference != 'N/A' ? legal.reference + '\n' : ''}'
+//               '${formattedDate != 'Invalid date' ? formattedDate + '\n' : ''}',
+//           pdfUrl: legal.downloadLink,
+//           type: getTypeForDownload(legal.category),
+//         ),
+//       ),
+//     );
+//   }
+
+//   void _filterLegalOpinions(String query) {
+//     setState(() {
+//       _filteredLegalOpinions = _legalOpinions.where((opinion) {
+//         final title = opinion.title.toLowerCase();
+//         final referenceNo = opinion.reference.toLowerCase();
+//         final category = opinion.category.toLowerCase();
+//         final date = opinion.date.toLowerCase();
+//         final extractedTexts = opinion.extractedTexts?.toLowerCase() ?? '';
+//         return title.contains(query.toLowerCase()) ||
+//             referenceNo.contains(query.toLowerCase()) ||
+//             category.contains(query.toLowerCase()) ||
+//             date.contains(query.toLowerCase()) ||
+//             extractedTexts.contains(query.toLowerCase());
+//       }).toList();
+//     });
+//   }
 // }
+
+// TextSpan highlightMatches(String text, String query) {
+//   if (query.isEmpty) {
+//     return TextSpan(text: text);
+//   }
+
+//   List<TextSpan> textSpans = [];
+
+//   // Create a regular expression pattern with case-insensitive matching
+//   RegExp regex = RegExp(query, caseSensitive: false);
+
+//   // Find all matches of the query in the text
+//   Iterable<Match> matches = regex.allMatches(text);
+
+//   // Start index for slicing the text
+//   int startIndex = 0;
+
+//   // Add text segments with and without highlighting
+//   for (Match match in matches) {
+//     // Add text segment before the match
+//     textSpans.add(TextSpan(text: text.substring(startIndex, match.start)));
+
+//     // Add the matching segment with highlighting
+//     textSpans.add(TextSpan(
+//       text: text.substring(match.start, match.end),
+//       style: TextStyle(
+//         color: Colors.blue,
+//         fontWeight: FontWeight.bold,
+//       ),
+//     ));
+
+//     // Update the start index for the next segment
+//     startIndex = match.end;
+//   }
+
+//   // Add the remaining text segment
+//   textSpans.add(TextSpan(text: text.substring(startIndex)));
+
+//   return TextSpan(children: textSpans);
+// }
+
+// void _navigateToSelectedPage(BuildContext context, int index) {}
