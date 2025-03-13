@@ -24,11 +24,13 @@ class _LegalOpinionsState extends State<LegalOpinions>
   late Animation<double> _scaleAnimation;
   List<LegalOpinion> _legalOpinions = [];
   List<LegalOpinion> _filteredLegalOpinions = [];
+  List<LegalOpinion> _backgroundFetchedOpinions = [];
   bool _hasInternetConnection = true;
   bool _isLoading = true;
   int _currentPage = 1;
   bool _isFetchingMore = false;
   bool _hasMoreData = true;
+  List<LegalOpinion> _allLegalOpinions = [];
 
   @override
   void initState() {
@@ -131,6 +133,48 @@ class _LegalOpinionsState extends State<LegalOpinions>
     }
   }
 
+  // Future<void> fetchLegalOpinions(
+  //     {bool isLoadMore = false, String searchQuery = ''}) async {
+  //   if (_isFetchingMore || (!_hasMoreData && isLoadMore)) return;
+
+  //   setState(() => _isFetchingMore = true);
+
+  //   try {
+  //     final response = await http.get(
+  //       Uri.parse(
+  //           '$baseURL/legal_opinions?page=$_currentPage&per_page=100&search=$searchQuery'),
+  //       headers: {'Accept': 'application/json'},
+  //     );
+
+  //     if (response.statusCode == 200) {
+  //       final responseData = json.decode(response.body);
+  //       final List<dynamic> data = responseData['legals'];
+
+  //       setState(() {
+  //         if (isLoadMore) {
+  //           _legalOpinions.addAll(
+  //               data.map((item) => LegalOpinion.fromJson(item)).toList());
+  //         } else {
+  //           _legalOpinions =
+  //               data.map((item) => LegalOpinion.fromJson(item)).toList();
+  //           _currentPage = 1; // Reset page for new search
+  //         }
+
+  //         _filteredLegalOpinions = _legalOpinions;
+  //         _hasMoreData = _currentPage < responseData['pagination']['last_page'];
+  //         if (_hasMoreData) _currentPage++;
+  //       });
+  //     } else {
+  //       print('Failed to load legal opinions');
+  //     }
+  //   } catch (error) {
+  //     print('Error fetching data: $error');
+  //   } finally {
+  //     setState(() => _isFetchingMore = false);
+  //   }
+  // }
+
+  //WORKING PAGINATION FETCH METHOD
   Future<void> fetchLegalOpinions({bool isLoadMore = false}) async {
     if (_isFetchingMore || !_hasMoreData) return; // Prevent multiple calls
 
@@ -263,60 +307,65 @@ class _LegalOpinionsState extends State<LegalOpinions>
   }
 
   // Widget _buildBody() {
-  //   return Column(
-  //     children: [
-  //       Container(
-  //         margin: EdgeInsets.fromLTRB(8, 16, 8, 0),
-  //         padding: EdgeInsets.symmetric(horizontal: 16.0),
-  //         decoration: BoxDecoration(
-  //           color: Colors.white,
-  //           borderRadius: BorderRadius.circular(20),
-  //           boxShadow: [
-  //             BoxShadow(
-  //               color: Colors.grey.withOpacity(0.5),
-  //               spreadRadius: 2,
-  //               blurRadius: 5,
-  //               offset: Offset(0, 3), // changes position of shadow
-  //             ),
-  //           ],
-  //         ),
-  //         child: TextField(
-  //           controller: _searchController,
-  //           decoration: InputDecoration(
-  //             hintText: 'Search...',
-  //             prefixIcon: Icon(Icons.search, color: Colors.grey),
-  //             border: InputBorder.none,
-  //             contentPadding: EdgeInsets.symmetric(vertical: 16.0),
+  //   return SingleChildScrollView(
+  //     child: Column(
+  //       children: [
+  //         // Search Bar Container
+  //         Container(
+  //           margin: EdgeInsets.fromLTRB(8, 16, 8, 0),
+  //           padding: EdgeInsets.symmetric(horizontal: 16.0),
+  //           decoration: BoxDecoration(
+  //             color: Colors.white,
+  //             borderRadius: BorderRadius.circular(20),
+  //             boxShadow: [
+  //               BoxShadow(
+  //                 color: Colors.grey.withOpacity(0.5),
+  //                 spreadRadius: 2,
+  //                 blurRadius: 5,
+  //                 offset: Offset(0, 3),
+  //               ),
+  //             ],
   //           ),
-  //           style: TextStyle(fontSize: 16.0),
-  //           onChanged: (value) {
-  //             // Call the function to filter the list based on the search query
-  //             _filterLegalOpinions(value); // Corrected method call
-  //           },
+  //           child: TextField(
+  //             controller: _searchController,
+  //             decoration: InputDecoration(
+  //               hintText: 'Search...',
+  //               prefixIcon: Icon(Icons.search, color: Colors.grey),
+  //               border: InputBorder.none,
+  //               contentPadding: EdgeInsets.symmetric(vertical: 16.0),
+  //             ),
+  //             style: TextStyle(fontSize: 16.0),
+  //             onChanged: (value) {
+  //               _filterLegalOpinions(value);
+  //             },
+  //           ),
   //         ),
-  //       ),
 
-  //       // List of Legal Opinions
-  //       Expanded(
-  //         child: ListView.builder(
-  //           controller: _scrollController,
-  //           itemCount: _filteredLegalOpinions.length + 1, // Extra for loader
-  //           itemBuilder: (context, index) {
-  //             if (index == _filteredLegalOpinions.length) {
-  //               return _hasMoreData
-  //                   ? Center(child: CircularProgressIndicator())
-  //                   : SizedBox.shrink();
-  //             }
-  //             return _buildLegalOpinionItem(_filteredLegalOpinions[index]);
-  //           },
+  //         SizedBox(height: 10),
+  //         SizedBox(
+  //           height: MediaQuery.of(context).size.height *
+  //               0.75, // Adjust height as needed
+  //           child: ListView.builder(
+  //             controller: _scrollController,
+  //             itemCount: _filteredLegalOpinions.length + 1,
+  //             itemBuilder: (context, index) {
+  //               if (index == _filteredLegalOpinions.length) {
+  //                 return _hasMoreData
+  //                     ? Center(child: CircularProgressIndicator())
+  //                     : SizedBox.shrink();
+  //               }
+  //               return _buildLegalOpinionItem(_filteredLegalOpinions[index]);
+  //             },
+  //           ),
   //         ),
-  //       ),
-  //     ],
+  //       ],
+  //     ),
   //   );
   // }
 
   Widget _buildBody() {
     return SingleChildScrollView(
+      controller: _scrollController,
       child: Column(
         children: [
           // Search Bar Container
@@ -350,24 +399,22 @@ class _LegalOpinionsState extends State<LegalOpinions>
             ),
           ),
 
-          SizedBox(height: 10), // Space between search bar and list
+          SizedBox(height: 10),
 
-          // Legal Opinions List
-          SizedBox(
-            height: MediaQuery.of(context).size.height *
-                0.75, // Adjust height as needed
-            child: ListView.builder(
-              controller: _scrollController,
-              itemCount: _filteredLegalOpinions.length + 1,
-              itemBuilder: (context, index) {
-                if (index == _filteredLegalOpinions.length) {
-                  return _hasMoreData
-                      ? Center(child: CircularProgressIndicator())
-                      : SizedBox.shrink();
-                }
-                return _buildLegalOpinionItem(_filteredLegalOpinions[index]);
-              },
-            ),
+          // List View inside SingleChildScrollView
+          ListView.builder(
+            physics:
+                NeverScrollableScrollPhysics(), // Prevents nested scroll conflict
+            shrinkWrap: true, // Makes ListView adapt to content height
+            itemCount: _filteredLegalOpinions.length + 1,
+            itemBuilder: (context, index) {
+              if (index == _filteredLegalOpinions.length) {
+                return _hasMoreData
+                    ? Center(child: CircularProgressIndicator())
+                    : SizedBox.shrink();
+              }
+              return _buildLegalOpinionItem(_filteredLegalOpinions[index]);
+            },
           ),
         ],
       ),
@@ -684,6 +731,7 @@ class _LegalOpinionsState extends State<LegalOpinions>
   //   }
   // }
 
+  //ORIGINAL _filterLegalOpinions method
   void _filterLegalOpinions(String query) {
     setState(() {
       _filteredLegalOpinions = _legalOpinions.where((opinion) {
