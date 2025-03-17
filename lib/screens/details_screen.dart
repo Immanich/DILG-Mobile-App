@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:DILGDOCS/Services/globals.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:http/http.dart' as http;
@@ -29,6 +30,7 @@ class Issuance {
 Future<List<Issuance>> fetchIssuances() async {
   final response = await http
       .get(Uri.parse('https://issuances.dilgbohol.com/api/latest_issuances'));
+  print('API Response: ${response.body}');
   if (response.statusCode == 200) {
     List<dynamic> data = jsonDecode(response.body);
     return data.map((json) => Issuance.fromJson(json)).toList();
@@ -41,16 +43,17 @@ class DetailsScreen extends StatelessWidget {
   final String title;
   final String content;
   final String pdfUrl;
-  final String type; // Add type parameter
-
+  final String type;
   const DetailsScreen({
     required this.title,
     required this.content,
     required this.pdfUrl,
-    required this.type, // Add this line
+    required this.type,
   });
 
   Widget build(BuildContext context) {
+    print('Navigated to DetailsScreen with PDF URL: $pdfUrl');
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -91,7 +94,7 @@ class DetailsScreen extends StatelessWidget {
                             fontSize: 15,
                             color: Colors.black,
                           ),
-                          textAlign: TextAlign.center,
+                          textAlign: TextAlign.justify,
                         ),
                       ),
                       SizedBox(height: 2),
@@ -102,12 +105,17 @@ class DetailsScreen extends StatelessWidget {
                       ),
                       SizedBox(height: 10),
                       Text(
-                        content,
-                        style: TextStyle(
-                          fontSize: 12,
-                        ),
-                        textAlign: TextAlign.center,
+                        content, // Your reference & category
+                        style: TextStyle(fontSize: 12),
+                        textAlign: TextAlign.center, // Align text to left
                       ),
+                      // Text(
+                      //   content,
+                      //   style: TextStyle(
+                      //     fontSize: 12,
+                      //   ),
+                      //   textAlign: TextAlign.left,
+                      // ),
                     ],
                   ),
                 ),
@@ -302,6 +310,10 @@ class PdfPreview extends StatelessWidget {
   }
 
   Future<File> _loadPdfFromUrl(String url) async {
+    if (url.isEmpty || !Uri.parse(url).isAbsolute) {
+      throw Exception('Invalid PDF URL: $url');
+    }
+
     final filename = url.split('/').last;
     final directory = await getApplicationDocumentsDirectory();
     final filePath = '${directory.path}/$filename';

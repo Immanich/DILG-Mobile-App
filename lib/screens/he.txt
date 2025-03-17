@@ -1,0 +1,435 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:DILGDOCS/Services/globals.dart';
+import 'package:DILGDOCS/models/legal_opinions.dart';
+import 'package:DILGDOCS/screens/file_utils.dart';
+// import 'package:connectivity/connectivity.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:intl/intl.dart';
+import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'details_screen.dart';
+import 'package:http/http.dart' as http;
+
+class LegalOpinions extends StatefulWidget {
+  @override
+  _LegalOpinionsState createState() => _LegalOpinionsState();
+}
+
+class _LegalOpinionsState extends State<LegalOpinions>
+    with SingleTickerProviderStateMixin {
+  TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+  List<LegalOpinion> _legalOpinions = [];
+  List<LegalOpinion> _filteredLegalOpinions = [];
+  bool _hasInternetConnection = true;
+  bool _isLoading = true;
+  int _currentPage = 1;
+  bool _isLoadingMore = false;
+  bool _isFetchingMore = false;
+  bool _hasMoreData = true;
+  bool _isSearching = false;
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    // fetchLegalOpinions();
+    _loadContentIfConnected();
+    _checkInternetConnection();
+    // fetchLegalOpinions();
+    Connectivity()
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> result) {
+      if (result.contains(ConnectivityResult.none)) {
+        setState(() {
+          _hasInternetConnection = false;
+        });
+      } else {
+        _loadContentIfConnected();
+      }
+    });
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 200) {
+        fetchLegalOpinions(
+            isLoadMore: true); // Load more when reaching the bottom
+      }
+    });
+    _animationController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 100),
+      lowerBound: 0.1,
+      upperBound: 1.0,
+    );
+
+    _scaleAnimation =
+        Tween<double>(begin: 1.0, end: 0.9).animate(_animationController);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToTop() {
+    _animationController.forward().then((_) {
+      _animationController.reverse(); // Restore the button size
+      _scrollController.animateTo(
+        0,
+        duration: Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  Future<void> _loadContentIfConnected() async {
+    var connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      setState(() {
+        _hasInternetConnection = true;
+      });
+      fetchLegalOpinions();
+    }
+  }
+
+  Future<void> _checkInternetConnection() async {
+    var connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult == ConnectivityResult.none) {
+      setState(() {
+        _hasInternetConnection = false;
+      });
+    }
+  }
+
+  Future<void> _openWifiSettings() async {
+    const url = 'app-settings:';
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      // Provide a generic message for both Android and iOS users
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Unable to open Wi-Fi settings'),
+            content: Text(
+                'Please open your Wi-Fi settings manually via the device settings.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+    }
+  }
+
+  //WORKING PAGINATION FETCH METHOD
+  Future<void> fetchLegalOpinions({bool isLoadMore = false}) async {
+    if (_isFetchingMore || !_hasMoreData) return; // Prevent multiple calls
+
+    setState(() {
+      _isFetchingMore = true;
+    });
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseURL/legal_opinions?page=$_currentPage&per_page=100'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        final List<dynamic> data = responseData['legals'];
+
+        setState(() {
+          if (isLoadMore) {
+            _legalOpinions.addAll(
+                data.map((item) => LegalOpinion.fromJson(item)).toList());
+          } else {
+            _legalOpinions =
+                data.map((item) => LegalOpinion.fromJson(item)).toList();
+          }
+          _filteredLegalOpinions = _legalOpinions;
+
+          _hasMoreData = _currentPage < responseData['pagination']['last_page'];
+          if (_hasMoreData) _currentPage++;
+        });
+      } else {
+        print('Failed to load legal opinions');
+      }
+    } catch (error) {
+      print('Error fetching data: $error');
+    } finally {
+      setState(() {
+        _isFetchingMore = false;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'Legal Opinions',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        iconTheme: IconThemeData(
+          color: Colors.white,
+        ),
+        backgroundColor: Colors.blue[900],
+      ),
+      body: _hasInternetConnection
+          ? (_isLoading ? _buildLoadingWidget() : _buildBody())
+          : Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'No internet connection',
+                    style: TextStyle(fontSize: 20.0),
+                  ),
+                  SizedBox(height: 10.0),
+                  ElevatedButton(
+                    onPressed: () {
+                      _openWifiSettings();
+                    },
+                    child: Text('Connect to Internet'),
+                  ),
+                ],
+              ),
+            ),
+      floatingActionButton: ScaleTransition(
+        scale: _scaleAnimation,
+        child: FloatingActionButton(
+          onPressed: _scrollToTop,
+          child: Icon(Icons.arrow_upward, color: Colors.white),
+          backgroundColor: Colors.blue[800],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingWidget() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(), // Circular progress indicator
+          SizedBox(height: 16),
+          Text(
+            'Loading Files',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // ORIGINAL _buildBODY()
+  Widget _buildBody() {
+    return SingleChildScrollView(
+      controller: _scrollController,
+      child: Column(
+        children: [
+          // Search Bar Container
+          Container(
+            margin: EdgeInsets.fromLTRB(8, 16, 8, 0),
+            padding: EdgeInsets.symmetric(horizontal: 16.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.5),
+                  spreadRadius: 2,
+                  blurRadius: 5,
+                  offset: Offset(0, 3),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search...',
+                prefixIcon: Icon(Icons.search, color: Colors.grey),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 16.0),
+              ),
+              style: TextStyle(fontSize: 16.0),
+              onChanged: (value) {
+                // fetchLegalOpinions();
+                _filterLegalOpinions(value);
+              },
+            ),
+          ),
+
+          SizedBox(height: 10),
+
+          // List View inside SingleChildScrollView
+          ListView.builder(
+            physics:
+                NeverScrollableScrollPhysics(), // Prevents nested scroll conflict
+            shrinkWrap: true, // Makes ListView adapt to content height
+            itemCount: _filteredLegalOpinions.length + 1,
+            itemBuilder: (context, index) {
+              if (index == _filteredLegalOpinions.length) {
+                return _hasMoreData
+                    ? Center(child: CircularProgressIndicator())
+                    : SizedBox.shrink();
+              }
+              return _buildLegalOpinionItem(_filteredLegalOpinions[index]);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegalOpinionItem(LegalOpinion opinion) {
+    return InkWell(
+      onTap: () => _navigateToDetailsPage(context, opinion),
+      child: Card(
+        margin: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start, // Prevents stretching
+            children: [
+              // Icon Container
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue[900]?.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.article, color: Colors.blue[900], size: 28),
+              ),
+
+              SizedBox(width: 12), // Spacing between icon and text
+
+              // Text Content
+              Expanded(
+                // Ensures text does not overflow
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text.rich(
+                      highlightMatches(opinion.title, _searchController.text),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis, // Prevents overflow
+                    ),
+                    SizedBox(height: 4),
+                    if (opinion.reference != 'N/A')
+                      Text.rich(
+                        highlightMatches(
+                            opinion.reference, _searchController.text),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    SizedBox(height: 4),
+                    if (opinion.category != 'N/A')
+                      Text.rich(
+                        highlightMatches('Category: ${opinion.category}',
+                            _searchController.text),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text.rich(
+                        highlightMatches(
+                            _formatDate(opinion.date), _searchController.text),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.blueGrey[600],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(String? dateString) {
+    if (dateString == null ||
+        dateString.isEmpty ||
+        dateString == 'N/A' ||
+        dateString == 'No Date') {
+      return 'No Date';
+    }
+    return dateString;
+  }
+
+  void _navigateToDetailsPage(BuildContext context, LegalOpinion legal) {
+    DateFormat inputFormat = DateFormat('MMMM dd, yyyy');
+
+    DateTime? parsedDate;
+    try {
+      parsedDate = inputFormat.parse(legal.date);
+    } catch (e) {
+      print('Error parsing date: $e');
+    }
+
+    String formattedDate = _formatDate(legal.date);
+    print(legal.link);
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DetailsScreen(
+          title: legal.title,
+          content: '${legal.reference != 'N/A' ? legal.reference + '\n' : ''}'
+              '${formattedDate != 'Invalid date' ? formattedDate + '\n' : ''}',
+          pdfUrl: legal.downloadLink,
+          type: getTypeForDownload(legal.category),
+        ),
+      ),
+    );
+  }
+
+  //ORIGINAL _filterLegalOpinions method
+  void _filterLegalOpinions(String query) {
+    setState(() {
+      _filteredLegalOpinions = _legalOpinions.where((opinion) {
+        final title = opinion.title.toLowerCase();
+        final referenceNo = opinion.reference.toLowerCase();
+        final category = opinion.category.toLowerCase();
+        final date = opinion.date.toLowerCase();
+        final extractedTexts = opinion.extractedTexts?.toLowerCase() ?? '';
+        return title.contains(query.toLowerCase()) ||
+            referenceNo.contains(query.toLowerCase()) ||
+            category.contains(query.toLowerCase()) ||
+            date.contains(query.toLowerCase()) ||
+            extractedTexts.contains(query.toLowerCase());
+      }).toList();
+    });
+  }
+}

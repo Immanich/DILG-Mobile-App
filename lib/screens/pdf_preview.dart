@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
+
 class PdfPreview extends StatelessWidget {
   final String url;
 
@@ -48,8 +49,7 @@ class PdfPreview extends StatelessWidget {
             ),
           );
         } else {
-           return Center(child: Text('Error loading PDF: ${snapshot.error}'));
-          
+          return Center(child: Text('Error loading PDF: ${snapshot.error}'));
         }
       },
     );

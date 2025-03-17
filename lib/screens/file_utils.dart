@@ -25,6 +25,7 @@ String getTypeFromPath(String filePath) {
 
 String getTypeForDownload(String issuanceType) {
   // Map issuance types to corresponding download types
+
   switch (issuanceType) {
     case 'Latest Issuance':
       return 'Latest Issuance';
@@ -32,15 +33,15 @@ String getTypeForDownload(String issuanceType) {
       return 'Joint Circulars';
     case 'Memo Circulars':
       return 'Memo Circulars';
-     case 'Presidential Directives':
-      return 'Presidential Directives';  
-     case 'Draft Issuances':
-      return 'Draft Issuances';  
-     case 'Republic Acts':
-      return 'Republic Acts';  
-     case 'Legal Opinions':
-      return 'Legal Opinions';  
-  
+    case 'Presidential Directives':
+      return 'Presidential Directives';
+    case 'Draft Issuances':
+      return 'Draft Issuances';
+    case 'Republic Acts':
+      return 'Republic Acts';
+    case 'Legal Opinions':
+      return 'Legal Opinions';
+
     default:
       return 'Other';
   }
