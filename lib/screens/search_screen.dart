@@ -58,8 +58,8 @@ class _SearchScreenState extends State<SearchScreen> {
     _initializeSpeechToText();
     fetchRepublicActs();
     fetchPresidentialCirculars();
-    fetchLegalOpinions();
     fetchMemoCirculars();
+    fetchLegalOpinions();
     fetchLatestIssuances();
     fetchJointCirculars();
     fetchDraftIssuances();
@@ -99,9 +99,8 @@ class _SearchScreenState extends State<SearchScreen> {
               String searchText = result.recognizedWords;
               _searchController.text = searchText;
               print('Search Text: $searchText');
-              _handleSearch(); // Call the search method when speech is recognized
-              Navigator.pop(
-                  context); // Dismiss the dialog when speech is recognized
+              _handleSearch();
+              Navigator.pop(context);
             }
           },
         );
@@ -304,7 +303,6 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
-  //ORIGINAL fetching of LO
   Future<void> fetchLegalOpinions() async {
     final response =
         await http.get(Uri.parse('$baseURL/legal_opinions'), headers: {
@@ -325,116 +323,6 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
-  // Future<void> fetchLegalOpinions() async {
-  //   try {
-  //     final response = await http.get(
-  //       Uri.parse('$baseURL/legal_opinions'),
-  //       headers: {'Accept': 'application/json'},
-  //     );
-
-  //     print('Raw JSON Response Length: ${response.body.length}');
-
-  //     if (response.statusCode == 200) {
-  //       if (response.body.isEmpty) {
-  //         print("API returned an empty response!");
-  //         return;
-  //       }
-
-  //       // ✅ Trim response and check if JSON is complete
-  //       final String cleanedBody = response.body.trim();
-
-  //       if (!cleanedBody.startsWith('{') || !cleanedBody.endsWith('}')) {
-  //         print('Error: JSON response is incomplete or corrupted.');
-  //         print(
-  //             'Raw JSON (first 1000 chars): ${cleanedBody.substring(0, 1000)}');
-  //         return;
-  //       }
-
-  //       try {
-  //         final Map<String, dynamic> decodedBody = jsonDecode(cleanedBody);
-
-  //         if (!decodedBody.containsKey('legals')) {
-  //           print("Error: Missing 'legals' key in response.");
-  //           return;
-  //         }
-
-  //         final List<dynamic> data = decodedBody['legals'];
-
-  //         setState(() {
-  //           _legalOpinions =
-  //               data.map((item) => LegalOpinion.fromJson(item)).toList();
-  //         });
-
-  //         print("Successfully loaded ${_legalOpinions.length} legal opinions.");
-  //       } catch (e) {
-  //         print("Error decoding JSON: $e");
-
-  //         // 🔥 Print the section where JSON parsing fails
-  //         final int errorIndex = cleanedBody.indexOf('"link":', 11627);
-  //         if (errorIndex != -1) {
-  //           print(
-  //               "🔍 JSON near error: ${cleanedBody.substring(errorIndex - 50, errorIndex + 50)}");
-  //         }
-  //       }
-  //     } else {
-  //       print('Failed to load legal opinions. Status: ${response.statusCode}');
-  //       print('Response Body: ${response.body}');
-  //     }
-  //   } catch (e) {
-  //     print('Error fetching legal opinions: $e');
-  //   }
-  // }
-
-  // Future<void> fetchLegalOpinions() async {
-  //   final response =
-  //       await http.get(Uri.parse('$baseURL/legal_opinions'), headers: {
-  //     'Accept': 'application/json',
-  //     // 'Content-Type': 'application/json',
-  //   });
-
-  //   if (response.statusCode == 200) {
-  //     if (response.body.isEmpty) {
-  //       print("API returned an empty response!");
-  //       return;
-  //     }
-
-  //     try {
-  //       final decodedBody = jsonDecode(response.body);
-  //       if (decodedBody == null || !decodedBody.containsKey('legals')) {
-  //         print("Invalid JSON format: Missing 'legals' key");
-  //         return;
-  //       }
-
-  //       final List<dynamic> data = decodedBody['legals'];
-
-  //       setState(() {
-  //         _legalOpinions =
-  //             data.map((item) => LegalOpinion.fromJson(item)).toList();
-  //       });
-  //     } catch (e) {
-  //       print("Error decoding JSON: $e");
-  //     }
-  //   } else {
-  //     print('Failed to load latest legal opinions');
-  //     print('Response status code: ${response.statusCode}');
-  //     print('Response body: ${response.body}');
-  //   }
-
-  // if (response.statusCode == 200) {
-  //   final List<dynamic> data =
-  //       json.decode(response.body.toString())['legals'];
-
-  //   setState(() {
-  //     _legalOpinions =
-  //         data.map((item) => LegalOpinion.fromJson(item)).toList();
-  //   });
-  // } else {
-  //   print('Failed to load latest legal opinions');
-  //   print('Response status code: ${response.statusCode}');
-  //   print('Response body: ${response.body}');
-  // }
-  // }
-
   Future<void> fetchLatestIssuances() async {
     final response = await http.get(
       Uri.parse('$baseURL/latest_issuances'),
@@ -450,7 +338,6 @@ class _SearchScreenState extends State<SearchScreen> {
             data.map((item) => LatestIssuance.fromJson(item)).toList();
       });
     } else {
-      // Handle error
       print('Failed to load latest issuances');
       print('Response status code: ${response.statusCode}');
       print('Response body: ${response.body}');
@@ -510,7 +397,6 @@ class _SearchScreenState extends State<SearchScreen> {
                                       border: InputBorder.none,
                                     ),
                                     onChanged: (value) {
-                                      // Call debounce function with 500 milliseconds delay
                                       _debounce(() {
                                         _handleSearch();
                                       }, Duration(milliseconds: 500));
@@ -540,7 +426,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                             waveAmplitude: 1,
                                             size: Size(50, double.infinity),
                                           )
-                                        : SizedBox(), // Show or hide the WaveWidget based on listening state
+                                        : SizedBox(),
                                   ),
                                 ],
                               ),
@@ -569,7 +455,6 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildSearchResultsContainer() {
     if (isSearching) {
-      // Show a circular progress indicator while searching
       return Center(
         child: CircularProgressIndicator(),
       );

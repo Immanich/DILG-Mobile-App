@@ -237,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildRecentIssuances() {
     Map<String, Issuance> seenTitles = {};
-    List<Issuance> recentIssuances = _recentlyOpenedIssuances.take(5).toList();
+    List<Issuance> recentIssuances = _recentlyOpenedIssuances.take(10).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -405,7 +405,7 @@ class _WebViewPageState extends State<WebViewPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.label), // Use the label as the title
+        title: Text(widget.label),
       ),
       body: WebViewWidget(controller: _controller),
     );

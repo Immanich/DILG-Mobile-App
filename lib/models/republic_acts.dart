@@ -1,21 +1,42 @@
-import 'issuances.dart';
-
 class RepublicAct {
   final int id;
-  final String responsibleOffice;
-  final Issuance issuance;
+  final String title;
+  final String link;
+  final String reference;
+  final String date;
+  final String downloadLink;
 
   RepublicAct({
     required this.id,
-    required this.responsibleOffice,
-    required this.issuance,
+    required this.title,
+    required this.link,
+    required this.reference,
+    required this.date,
+    required this.downloadLink,
   });
 
   factory RepublicAct.fromJson(Map<String, dynamic> json) {
     return RepublicAct(
       id: json['id'],
-      responsibleOffice: json['responsible_office'],
-      issuance: Issuance.fromJson(json['issuance']),
+      title: json['title'] ?? 'Untitled',
+      link: json['link'] ?? '',
+      reference: json['reference'] ?? 'No Reference',
+      date: json['date'] ?? 'No Date',
+      downloadLink: json['download_link'] != null &&
+              json['download_link'].toString().startsWith('http')
+          ? json['download_link']
+          : '',
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'link': link,
+      'reference': reference,
+      'date': date,
+      'download_link': downloadLink,
+    };
   }
 }

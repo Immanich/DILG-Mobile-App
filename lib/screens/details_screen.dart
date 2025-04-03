@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:DILGDOCS/Services/globals.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
@@ -94,7 +93,7 @@ class DetailsScreen extends StatelessWidget {
                             fontSize: 15,
                             color: Colors.black,
                           ),
-                          textAlign: TextAlign.justify,
+                          textAlign: TextAlign.center,
                         ),
                       ),
                       SizedBox(height: 2),
@@ -105,17 +104,10 @@ class DetailsScreen extends StatelessWidget {
                       ),
                       SizedBox(height: 10),
                       Text(
-                        content, // Your reference & category
+                        content,
                         style: TextStyle(fontSize: 12),
-                        textAlign: TextAlign.center, // Align text to left
+                        textAlign: TextAlign.center,
                       ),
-                      // Text(
-                      //   content,
-                      //   style: TextStyle(
-                      //     fontSize: 12,
-                      //   ),
-                      //   textAlign: TextAlign.left,
-                      // ),
                     ],
                   ),
                 ),

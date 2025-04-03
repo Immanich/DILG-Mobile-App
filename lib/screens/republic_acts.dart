@@ -1,32 +1,34 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:DILGDOCS/Services/globals.dart';
-// import 'package:connectivity/connectivity.dart';
+import '../models/republic_acts.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../models/republic_acts.dart';
-import '../screens/sidebar.dart';
 import '../screens/details_screen.dart';
 import 'package:http/http.dart' as http;
-import 'file_utils.dart';
 
 class RepublicActs extends StatefulWidget {
   @override
   _RepublicActsState createState() => _RepublicActsState();
 }
 
-class _RepublicActsState extends State<RepublicActs> {
+class _RepublicActsState extends State<RepublicActs>
+    with SingleTickerProviderStateMixin {
   TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
   List<RepublicAct> _republicActs = [];
   List<RepublicAct> _filteredRepublicActs = [];
   bool _hasInternetConnection = true;
   bool _isLoading = true;
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
-    // fetchRepublicActs();
     _loadContentIfConnected();
     _checkInternetConnection();
     Connectivity()
@@ -40,6 +42,36 @@ class _RepublicActsState extends State<RepublicActs> {
         _loadContentIfConnected();
       }
     });
+
+    _animationController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 100),
+      lowerBound: 0.1,
+      upperBound: 1.0,
+    );
+
+    _scaleAnimation =
+        Tween<double>(begin: 1.0, end: 0.9).animate(_animationController);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _animationController.dispose();
+    _searchController.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _scrollToTop() {
+    _animationController.forward().then((_) {
+      _animationController.reverse();
+      _scrollController.animateTo(
+        0,
+        duration: Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   Future<void> _loadContentIfConnected() async {
@@ -48,7 +80,6 @@ class _RepublicActsState extends State<RepublicActs> {
       setState(() {
         _hasInternetConnection = true;
       });
-      // Load your content here
       fetchRepublicActs();
     }
   }
@@ -67,7 +98,6 @@ class _RepublicActsState extends State<RepublicActs> {
     if (await canLaunch(url)) {
       await launch(url);
     } else {
-      // Provide a generic message for both Android and iOS users
       showDialog(
         context: context,
         builder: (BuildContext context) {
@@ -90,26 +120,119 @@ class _RepublicActsState extends State<RepublicActs> {
   }
 
   Future<void> fetchRepublicActs() async {
-    final response = await http.get(
-      Uri.parse('$baseURL/republic_acts'),
-      headers: {
-        'Accept': 'application/json',
-      },
-    );
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body)['republics'];
+    setState(() {
+      _isLoading = true;
+    });
 
+    try {
+      final response = await http.get(
+        Uri.parse('$baseURL/republic_acts'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        final List<dynamic> data = responseData['republics'];
+
+        setState(() {
+          _republicActs =
+              data.map((item) => RepublicAct.fromJson(item)).toList();
+          _filteredRepublicActs = _republicActs;
+          _isLoading = false;
+        });
+      } else {
+        print('Failed to load republic acts: ${response.statusCode}');
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (error) {
+      print('Error fetching data: $error');
       setState(() {
-        _republicActs = data.map((item) => RepublicAct.fromJson(item)).toList();
-        _filteredRepublicActs = _republicActs;
         _isLoading = false;
       });
-    } else {
-      // Handle error
-      print('Failed to load republic acts');
-      print('Response status code: ${response.statusCode}');
-      print('Response body: ${response.body}');
     }
+  }
+
+  void _filterRepublicActs(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+
+    _debounce = Timer(Duration(milliseconds: 500), () {
+      setState(() {
+        if (query.isEmpty) {
+          _filteredRepublicActs = _republicActs;
+        } else {
+          _filteredRepublicActs = _republicActs.where((act) {
+            final title = act.title.toLowerCase();
+            final reference = act.reference.toLowerCase();
+            final date = act.date.toLowerCase();
+            final queryLower = query.toLowerCase();
+
+            return title.contains(queryLower) ||
+                reference.contains(queryLower) ||
+                date.contains(queryLower);
+          }).toList();
+        }
+      });
+    });
+  }
+
+  String _formatDate(String? dateString) {
+    if (dateString == null ||
+        dateString.isEmpty ||
+        dateString == 'N/A' ||
+        dateString == 'No Date') {
+      return 'No Date';
+    }
+
+    try {
+      DateFormat inputFormat = DateFormat('MMMM dd, yyyy');
+      DateTime parsedDate = inputFormat.parse(dateString);
+      return DateFormat('MMMM dd, yyyy').format(parsedDate);
+    } catch (e) {
+      print('Error parsing date: $e');
+      return 'Invalid Date';
+    }
+  }
+
+  void _navigateToDetailsPage(BuildContext context, RepublicAct act) {
+    String formattedDate = _formatDate(act.date);
+    print('Republic Act PDF URL: ${act.downloadLink}');
+
+    StringBuffer contentBuffer = StringBuffer();
+
+    if (formattedDate != 'Invalid date') {
+      contentBuffer.writeln(formattedDate);
+    }
+
+    if (act.reference.isNotEmpty &&
+        act.reference != 'No Reference' &&
+        act.reference != 'N/A') {
+      contentBuffer.writeln('Ref #: ${act.reference}');
+    }
+
+    final pdfUrl = act.downloadLink.isNotEmpty ? act.downloadLink : act.link;
+    if (!Uri.parse(pdfUrl).isAbsolute ||
+        !pdfUrl.toLowerCase().endsWith('.pdf')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Invalid PDF URL: $pdfUrl')),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DetailsScreen(
+          title: act.title,
+          content: contentBuffer.isNotEmpty
+              ? contentBuffer.toString()
+              : 'No additional information available',
+          pdfUrl: pdfUrl,
+          type: 'Republic Act', // Static type since we don't have category
+        ),
+      ),
+    );
   }
 
   @override
@@ -128,67 +251,10 @@ class _RepublicActsState extends State<RepublicActs> {
         ),
         backgroundColor: Colors.blue[900],
       ),
-      body: _hasInternetConnection
-          ? (_isLoading ? _buildLoadingWidget() : _buildBody())
-          : Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'No internet connection',
-                    style: TextStyle(fontSize: 20.0),
-                  ),
-                  SizedBox(height: 10.0),
-                  ElevatedButton(
-                    onPressed: () {
-                      _openWifiSettings();
-                    },
-                    child: Text('Connect to Internet'),
-                  ),
-                ],
-              ),
-            ),
-    );
-  }
-
-  Widget _buildLoadingWidget() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      body: Column(
         children: [
-          CircularProgressIndicator(), // Circular progress indicator
-          SizedBox(height: 16),
-          Text(
-            'Loading Files',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16.0),
-            Text(
-              'Loading...',
-              style: TextStyle(fontSize: 18.0),
-            ),
-          ],
-        ),
-      );
-    }
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          // Search Input
           Container(
-            margin: EdgeInsets.only(top: 16.0),
+            margin: EdgeInsets.fromLTRB(8, 16, 8, 0),
             padding: EdgeInsets.symmetric(horizontal: 16.0),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -198,7 +264,7 @@ class _RepublicActsState extends State<RepublicActs> {
                   color: Colors.grey.withOpacity(0.5),
                   spreadRadius: 2,
                   blurRadius: 5,
-                  offset: Offset(0, 3), // changes position of shadow
+                  offset: Offset(0, 3),
                 ),
               ],
             ),
@@ -211,144 +277,148 @@ class _RepublicActsState extends State<RepublicActs> {
                 contentPadding: EdgeInsets.symmetric(vertical: 16.0),
               ),
               style: TextStyle(fontSize: 16.0),
-              onChanged: (value) {
-                // Call the function to filter the list based on the search query
-                _filterRepublicActs(value); // Corrected method call
-              },
+              onChanged: _filterRepublicActs,
             ),
           ),
-
-          // Display the filtered republic acts or "No republic acts found" message
-          _filteredRepublicActs.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                      'No republic acts found',
-                      style: TextStyle(fontSize: 18.0),
+          SizedBox(height: 10),
+          Expanded(
+            child: _hasInternetConnection
+                ? (_isLoading ? _buildLoadingWidget() : _buildBody())
+                : Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'No internet connection',
+                          style: TextStyle(fontSize: 20.0),
+                        ),
+                        SizedBox(height: 10.0),
+                        ElevatedButton(
+                          onPressed: _openWifiSettings,
+                          child: Text('Connect to Internet'),
+                        ),
+                      ],
                     ),
                   ),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(height: 16.0),
-                    for (int index = 0;
-                        index < _filteredRepublicActs.length;
-                        index++)
-                      InkWell(
-                        onTap: () {
-                          _navigateToDetailsPage(
-                              context, _filteredRepublicActs[index]);
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(
-                                  color:
-                                      const Color.fromARGB(255, 203, 201, 201),
-                                  width: 1.0),
-                            ),
-                          ),
-                          child: Card(
-                            elevation: 0,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.article, color: Colors.blue[900]),
-                                  SizedBox(width: 16.0),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text.rich(
-                                          highlightMatches(
-                                            _filteredRepublicActs[index]
-                                                .issuance
-                                                .title,
-                                            _searchController.text,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                        SizedBox(height: 4.0),
-                                        Text(
-                                          _filteredRepublicActs[index]
-                                                      .responsibleOffice !=
-                                                  'N/A'
-                                              ? 'Responsible Office: ${_filteredRepublicActs[index].responsibleOffice}'
-                                              : '',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  SizedBox(width: 16.0),
-                                  Text(
-                                    _filteredRepublicActs[index]
-                                                .issuance
-                                                .date !=
-                                            'N/A'
-                                        ? DateFormat('MMMM dd, yyyy').format(
-                                            DateTime.parse(
-                                                _filteredRepublicActs[index]
-                                                    .issuance
-                                                    .date))
-                                        : '',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+          ),
         ],
       ),
-    );
-  }
-
-  void _navigateToDetailsPage(BuildContext context, RepublicAct issuance) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DetailsScreen(
-          title: issuance.issuance.title,
-          content:
-              'Ref #: ${issuance.issuance.referenceNo != 'N/A' ? issuance.issuance.referenceNo + '\n' : ''}'
-              '${issuance.issuance.date != 'N/A' ? DateFormat('MMMM dd, yyyy').format(DateTime.parse(issuance.issuance.date)) + '\n' : ''}',
-          pdfUrl: issuance.issuance.urlLink,
-          type: getTypeForDownload(issuance.issuance.type),
+      floatingActionButton: ScaleTransition(
+        scale: _scaleAnimation,
+        child: FloatingActionButton(
+          onPressed: _scrollToTop,
+          child: Icon(Icons.arrow_upward, color: Colors.white),
+          backgroundColor: Colors.blue[800],
         ),
       ),
     );
   }
 
-  void _filterRepublicActs(String query) {
-    setState(() {
-      // Filter the republic acts based on the search query
-      _filteredRepublicActs = _republicActs.where((act) {
-        final title = act.issuance.title.toLowerCase();
-        final referenceNo = act.issuance.referenceNo.toLowerCase();
-        return title.contains(query.toLowerCase()) ||
-            referenceNo.contains(query.toLowerCase());
-      }).toList();
-    });
+  Widget _buildLoadingWidget() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text(
+            'Loading Files',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    return SingleChildScrollView(
+      controller: _scrollController,
+      child: Column(
+        children: [
+          ListView.builder(
+            physics: NeverScrollableScrollPhysics(),
+            shrinkWrap: true,
+            itemCount: _filteredRepublicActs.length,
+            itemBuilder: (context, index) {
+              return _buildRepublicActItem(_filteredRepublicActs[index]);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRepublicActItem(RepublicAct act) {
+    return InkWell(
+      onTap: () => _navigateToDetailsPage(context, act),
+      child: Card(
+        margin: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue[900]?.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.article, color: Colors.blue[900], size: 28),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text.rich(
+                      highlightMatches(act.title, _searchController.text),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: 4),
+                    if (act.reference != 'N/A' && act.reference.isNotEmpty)
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'Ref #: ',
+                              style: TextStyle(
+                                fontSize: 14,
+                              ),
+                            ),
+                            highlightMatches(
+                                act.reference, _searchController.text),
+                          ],
+                        ),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text.rich(
+                        highlightMatches(
+                            _formatDate(act.date), _searchController.text),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.blueGrey[600],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -358,36 +428,30 @@ TextSpan highlightMatches(String text, String query) {
   }
 
   List<TextSpan> textSpans = [];
-
-  // Create a regular expression pattern with case-insensitive matching
-  RegExp regex = RegExp(query, caseSensitive: false);
-
-  // Find all matches of the query in the text
-  Iterable<Match> matches = regex.allMatches(text);
-
-  // Start index for slicing the text
   int startIndex = 0;
+  final queryLower = query.toLowerCase();
+  final textLower = text.toLowerCase();
+  int matchIndex;
 
-  // Add text segments with and without highlighting
-  for (Match match in matches) {
-    // Add text segment before the match
-    textSpans.add(TextSpan(text: text.substring(startIndex, match.start)));
+  while ((matchIndex = textLower.indexOf(queryLower, startIndex)) != -1) {
+    if (matchIndex > startIndex) {
+      textSpans.add(TextSpan(text: text.substring(startIndex, matchIndex)));
+    }
 
-    // Add the matching segment with highlighting
     textSpans.add(TextSpan(
-      text: text.substring(match.start, match.end),
+      text: text.substring(matchIndex, matchIndex + query.length),
       style: TextStyle(
-        color: Colors.blue, // Customize highlight color here
-        fontWeight: FontWeight.bold, // Customize highlight style here
+        color: Colors.blue,
+        fontWeight: FontWeight.bold,
       ),
     ));
 
-    // Update the start index for the next segment
-    startIndex = match.end;
+    startIndex = matchIndex + query.length;
   }
 
-  // Add the remaining text segment
-  textSpans.add(TextSpan(text: text.substring(startIndex)));
+  if (startIndex < text.length) {
+    textSpans.add(TextSpan(text: text.substring(startIndex)));
+  }
 
   return TextSpan(children: textSpans);
 }
