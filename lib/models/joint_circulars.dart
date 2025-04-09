@@ -1,20 +1,44 @@
 import 'issuances.dart';
+
 class JointCircular {
   final int id;
-  final String responsible_office;
-  final Issuance issuance;
+  final String title;
+  final String link;
+  final String reference;
+  final String date;
+  final String downloadLink;
 
   JointCircular({
     required this.id,
-    required this.responsible_office,
-    required this.issuance,
+    required this.title,
+    required this.link,
+    required this.reference,
+    required this.date,
+    required this.downloadLink,
   });
 
   factory JointCircular.fromJson(Map<String, dynamic> json) {
     return JointCircular(
       id: json['id'],
-      responsible_office: json['responsible_office'],
-      issuance: Issuance.fromJson(json['issuance']),
+      title: json['title'] ?? 'Untitled',
+      link: json['link'] ?? '',
+      reference: json['reference'] ?? 'No Reference',
+      date: json['date'] ?? 'No Date',
+      downloadLink: json['download_link'] != null &&
+              json['download_link'].toString().startsWith('http')
+          ? json['download_link']
+          : '',
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'link': link,
+      'reference': reference,
+      'date': date,
+      'download_link': downloadLink,
+    };
   }
 }
