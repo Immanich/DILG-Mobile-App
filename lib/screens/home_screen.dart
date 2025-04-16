@@ -181,15 +181,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 const SizedBox(height: 30.0),
                 WebViewWideButton(
                   label: 'NEWS AND UPDATES',
-                  url: 'https://dilgbohol.com/news_update',
+                  url: 'https://dilgbohol.com/News',
                 ),
                 WebViewWideButton(
                   label: 'THE PROVINCIAL DIRECTOR',
-                  url: 'https://dilgbohol.com/provincial_director',
+                  url: 'https://dilgbohol.com/provincialDirector',
                 ),
                 WebViewWideButton(
                   label: 'VISION AND MISSION',
-                  url: 'https://dilgbohol.com/about_us',
+                  url: 'https://dilgbohol.com/aboutUs',
                 ),
                 Container(
                   padding: const EdgeInsets.all(16.0),

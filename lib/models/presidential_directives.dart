@@ -4,6 +4,7 @@ class PresidentialDirective {
   final String link;
   final String reference;
   final String date;
+  final String type;
   final String downloadLink;
 
   PresidentialDirective({
@@ -12,6 +13,7 @@ class PresidentialDirective {
     required this.link,
     required this.reference,
     required this.date,
+    required this.type,
     required this.downloadLink,
   });
 
@@ -22,6 +24,7 @@ class PresidentialDirective {
       link: json['link'] ?? '',
       reference: json['reference'] ?? 'No Reference',
       date: json['date'] ?? 'No Date',
+      type: json['type'] ?? 'Presidential Directives',
       downloadLink: json['download_link'] != null &&
               json['download_link'].toString().startsWith('http')
           ? json['download_link']

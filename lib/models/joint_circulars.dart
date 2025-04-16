@@ -6,6 +6,7 @@ class JointCircular {
   final String link;
   final String reference;
   final String date;
+  final String type;
   final String downloadLink;
 
   JointCircular({
@@ -14,6 +15,7 @@ class JointCircular {
     required this.link,
     required this.reference,
     required this.date,
+    required this.type,
     required this.downloadLink,
   });
 
@@ -24,6 +26,7 @@ class JointCircular {
       link: json['link'] ?? '',
       reference: json['reference'] ?? 'No Reference',
       date: json['date'] ?? 'No Date',
+      type: json['type'] ?? 'Joint Circulars',
       downloadLink: json['download_link'] != null &&
               json['download_link'].toString().startsWith('http')
           ? json['download_link']

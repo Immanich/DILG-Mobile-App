@@ -92,7 +92,7 @@ class _SearchScreenState extends State<SearchScreen> {
     });
     if (speech.isAvailable) {
       if (!speech.isListening) {
-        _showListeningDialog(context); // Show listening dialog
+        _showListeningDialog(context);
         speech.listen(
           onResult: (result) {
             if (result.finalResult) {
@@ -636,6 +636,7 @@ class _SearchScreenState extends State<SearchScreen> {
     if (searchInput.isEmpty) {
       return SizedBox.shrink();
     }
+
     return searchResults.isNotEmpty
         ? SingleChildScrollView(
             child: Column(
@@ -646,6 +647,9 @@ class _SearchScreenState extends State<SearchScreen> {
                   itemCount: searchResults.length,
                   itemBuilder: (context, index) {
                     final SearchResult result = searchResults[index];
+                    debugPrint(
+                        'Result $index - Type: ${result.type}, ExtractedTexts: ${result.extractedTexts}'); // Debug print
+
                     return GestureDetector(
                       onTap: () {
                         Navigator.push(
@@ -669,12 +673,90 @@ class _SearchScreenState extends State<SearchScreen> {
                               spreadRadius: 2,
                               blurRadius: 5,
                               offset: Offset(0, 3),
-                            ),
+                            )
                           ],
                         ),
-                        child: RichText(
-                          text: highlightTextWithOriginalTitle(
-                              result.title, searchInput),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Title
+                            Text.rich(
+                              highlightTextWithOriginalTitle(
+                                text: result.title,
+                                highlight: searchInput,
+                                limitLines: false,
+                                baseStyle: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
+
+                            // Extracted Texts - Improved version
+                            if (result.type == 'Legal Opinions' &&
+                                result.extractedTexts != null)
+                              Builder(
+                                builder: (context) {
+                                  final extracted =
+                                      result.extractedTexts!.trim();
+                                  if (extracted.isEmpty)
+                                    return SizedBox.shrink();
+
+                                  final highlighted =
+                                      highlightTextWithOriginalTitle(
+                                    text: extracted,
+                                    highlight: searchInput,
+                                    limitLines: true,
+                                    baseStyle: TextStyle(
+                                      color: Colors.grey[800],
+                                      fontSize: 14,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                    highlightStyle: TextStyle(
+                                      color: Colors.blue,
+                                      fontWeight: FontWeight.bold,
+                                      backgroundColor:
+                                          Colors.yellow.withOpacity(0.3),
+                                    ),
+                                  );
+
+                                  return Padding(
+                                    padding: EdgeInsets.only(top: 8, bottom: 4),
+                                    child: RichText(
+                                      text: highlighted,
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  );
+                                },
+                              ),
+
+                            // Reference
+                            Padding(
+                              padding: EdgeInsets.only(top: 8),
+                              child: Text(
+                                'Ref #: ${result.reference}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ),
+
+                            // Type
+                            Padding(
+                              padding: EdgeInsets.only(top: 4),
+                              child: Text(
+                                'Type: ${result.type}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -686,59 +768,132 @@ class _SearchScreenState extends State<SearchScreen> {
         : Center(child: Text('No results found'));
   }
 
-  TextSpan highlightTextWithOriginalTitle(String text, String highlight) {
+  TextSpan highlightTextWithOriginalTitle({
+    required String text,
+    required String highlight,
+    bool limitLines = false,
+    int maxLines = 3,
+    TextStyle? baseStyle,
+    TextStyle? highlightStyle,
+  }) {
+    if (highlight.isEmpty) {
+      return TextSpan(
+        text: text,
+        style: baseStyle ?? TextStyle(color: Colors.black),
+      );
+    }
+
+    // For non-line-limited text (like titles)
+    if (!limitLines) {
+      List<TextSpan> spans = [];
+      int prevIndex = 0;
+      int index = text.toLowerCase().indexOf(highlight.toLowerCase());
+
+      while (index != -1) {
+        spans.add(TextSpan(
+          text: text.substring(prevIndex, index),
+          style: baseStyle,
+        ));
+        spans.add(TextSpan(
+          text: text.substring(index, index + highlight.length),
+          style: highlightStyle ?? TextStyle(color: Colors.blue),
+        ));
+        prevIndex = index + highlight.length;
+        index = text.toLowerCase().indexOf(highlight.toLowerCase(), prevIndex);
+      }
+
+      spans.add(TextSpan(
+        text: text.substring(prevIndex),
+        style: baseStyle,
+      ));
+
+      return TextSpan(children: spans);
+    }
+
+    // For line-limited text (like extracted texts)
+    List<String> lines = text.split('\n');
     List<TextSpan> spans = [];
+    int matchedLines = 0;
+    bool hasMoreMatches = false;
 
-    List<int> matches = [];
-    int index = text.toLowerCase().indexOf(highlight.toLowerCase());
-    while (index != -1) {
-      matches.add(index);
-      index = text.toLowerCase().indexOf(highlight.toLowerCase(), index + 1);
+    for (int lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      String line = lines[lineIndex];
+      List<TextSpan> lineSpans = [];
+      bool lineHasMatch = false;
+
+      int index = line.toLowerCase().indexOf(highlight.toLowerCase());
+      if (index != -1) {
+        lineHasMatch = true;
+        matchedLines++;
+      }
+
+      if (lineHasMatch || (matchedLines > 0 && matchedLines <= maxLines)) {
+        int prevIndex = 0;
+        index = line.toLowerCase().indexOf(highlight.toLowerCase());
+
+        while (index != -1) {
+          lineSpans.add(TextSpan(
+            text: line.substring(prevIndex, index),
+            style: baseStyle,
+          ));
+          lineSpans.add(TextSpan(
+            text: line.substring(index, index + highlight.length),
+            style: highlightStyle ?? TextStyle(color: Colors.blue),
+          ));
+          prevIndex = index + highlight.length;
+          index =
+              line.toLowerCase().indexOf(highlight.toLowerCase(), prevIndex);
+        }
+
+        lineSpans.add(TextSpan(
+          text: line.substring(prevIndex),
+          style: baseStyle,
+        ));
+
+        if (lineIndex < lines.length - 1) {
+          lineSpans.add(TextSpan(text: '\n'));
+        }
+
+        spans.addAll(lineSpans);
+      }
+
+      if (lineHasMatch && matchedLines > maxLines) {
+        hasMoreMatches = true;
+        break;
+      }
     }
 
-    int prevIndex = 0;
-    for (int match in matches) {
+    if (hasMoreMatches || matchedLines > maxLines) {
       spans.add(TextSpan(
-        text: text.substring(prevIndex, match),
-        style:
-            TextStyle(color: Colors.black, fontSize: 15, fontFamily: 'Poppins'),
+        text: '...',
+        style: baseStyle,
       ));
-      spans.add(TextSpan(
-        text: text.substring(match, match + highlight.length),
-        style:
-            TextStyle(color: Colors.blue, fontSize: 15, fontFamily: 'Poppins'),
-      ));
-      prevIndex = match + highlight.length;
     }
-    spans.add(TextSpan(
-      text: text.substring(prevIndex),
-      style:
-          TextStyle(color: Colors.black, fontSize: 15, fontFamily: 'Poppins'),
-    ));
 
     return TextSpan(children: spans);
   }
 
-  void _handleSearch() {
+  void _handleSearch() async {
     String searchInput = _searchController.text.toLowerCase();
 
     print('Search Input: $searchInput');
     print('Searching: ${_searchController.text}');
 
     if (searchInput.length < 3) {
-      // Reset search results and show a message to the user to input more characters
       setState(() {
         this.searchResults = [];
         this.searchInput = '';
         showNoMatchFound = false;
       });
-      return; // Exit the method
+      return;
     }
+
     if (searchInput.isNotEmpty) {
       setState(() {
         isSearching = true;
         showNoMatchFound = false;
       });
+
       List<dynamic> allData = [
         ..._memoCirculars,
         ..._presidentialDirectives,
@@ -750,20 +905,122 @@ class _SearchScreenState extends State<SearchScreen> {
       ];
 
       List<SearchResult> searchResults = allData
-          .where((data) =>
-              (data is MemoCircular ||
-                  data is PresidentialDirective ||
-                  data is RepublicAct ||
-                  data is LegalOpinion ||
-                  data is JointCircular ||
-                  data is DraftIssuance ||
-                  data is LatestIssuance) &&
-              (data.issuance.title.toLowerCase().contains(searchInput) ||
-                  data.issuance.keyword.toLowerCase().contains(searchInput)))
-          .map((data) =>
-              SearchResult(data.issuance.title, data.issuance.urlLink))
+          .where((data) {
+            if (data is MemoCircular ||
+                data is DraftIssuance ||
+                data is LatestIssuance) {
+              return data.issuance.title.toLowerCase().contains(searchInput) ||
+                  (data.issuance.keyword?.toLowerCase().contains(searchInput) ??
+                      false);
+            } else if (data is PresidentialDirective) {
+              return data.title.toLowerCase().contains(searchInput) ||
+                  data.reference.toLowerCase().contains(searchInput);
+            } else if (data is RepublicAct) {
+              return data.title.toLowerCase().contains(searchInput) ||
+                  data.reference.toLowerCase().contains(searchInput);
+            } else if (data is LegalOpinion) {
+              return data.title.toLowerCase().contains(searchInput) ||
+                  data.reference.toLowerCase().contains(searchInput) ||
+                  (data.extractedTexts?.toLowerCase().contains(searchInput) ??
+                      false);
+            } else if (data is JointCircular) {
+              return data.title.toLowerCase().contains(searchInput) ||
+                  data.reference.toLowerCase().contains(searchInput);
+            }
+            return false;
+          })
+          .map((data) {
+            if (data is MemoCircular) {
+              return SearchResult(
+                data.issuance.title,
+                data.issuance.urlLink,
+                'Memo Circular',
+                data.issuance.referenceNo,
+              );
+            } else if (data is DraftIssuance) {
+              return SearchResult(
+                data.issuance.title,
+                data.issuance.urlLink,
+                'Draft Issuance',
+                data.issuance.referenceNo,
+              );
+            } else if (data is LatestIssuance) {
+              return SearchResult(
+                data.issuance.title,
+                data.issuance.urlLink,
+                'Latest Issuance',
+                data.issuance.referenceNo,
+              );
+            } else if (data is PresidentialDirective) {
+              return SearchResult(
+                data.title,
+                data.link,
+                data.type,
+                data.reference,
+              );
+            } else if (data is RepublicAct) {
+              return SearchResult(
+                data.title,
+                data.link,
+                'Republic Act',
+                data.reference,
+              );
+            } else if (data is LegalOpinion) {
+              return SearchResult(
+                data.title,
+                data.link,
+                'Legal Opinions',
+                data.reference,
+                data.extractedTexts,
+              );
+            } else if (data is JointCircular) {
+              return SearchResult(
+                data.title,
+                data.link,
+                'Joint Circular',
+                data.reference,
+              );
+            }
+            return SearchResult('', '', '', '');
+          })
           .where((result) => result.title.isNotEmpty)
           .toList();
+
+      if (searchResults.isEmpty) {
+        try {
+          final Map<String, String> queryParams = {
+            'search': searchInput,
+            'page': '1',
+            'per_page': '50',
+          };
+
+          final uri = Uri.parse('$baseURL/legal_opinions').replace(
+            queryParameters: queryParams,
+          );
+
+          final response = await http.get(
+            uri,
+            headers: {'Accept': 'application/json'},
+          );
+
+          if (response.statusCode == 200) {
+            final responseData = json.decode(response.body);
+            final List<dynamic> data = responseData['legals'];
+
+            searchResults = data
+                .map((item) => SearchResult(
+                      item['title'],
+                      item['link'],
+                      'Legal Opinions',
+                      item['reference'] ?? '',
+                      item['extracted_texts'],
+                    ))
+                .toList();
+          }
+        } catch (error) {
+          print('Error fetching legal opinions: $error');
+        }
+      }
 
       setState(() {
         this.searchResults = searchResults;
@@ -805,6 +1062,10 @@ class _SearchScreenState extends State<SearchScreen> {
 class SearchResult {
   final String title;
   final String pdfUrl;
+  final String type;
+  final String reference;
+  final String? extractedTexts;
 
-  SearchResult(this.title, this.pdfUrl);
+  SearchResult(this.title, this.pdfUrl, this.type, this.reference,
+      [this.extractedTexts]);
 }

@@ -5,6 +5,7 @@ class LegalOpinion {
   final String category;
   final String reference;
   final String date;
+  final String type;
   final String downloadLink;
   final String? extractedTexts;
 
@@ -15,6 +16,7 @@ class LegalOpinion {
     required this.category,
     required this.reference,
     required this.date,
+    required this.type,
     required this.downloadLink,
     this.extractedTexts,
   });
@@ -27,6 +29,7 @@ class LegalOpinion {
       category: json['category'] ?? '',
       reference: json['reference'] ?? 'No Reference',
       date: json['date'] ?? 'No Date',
+      type: json['type'] ?? 'Legal Opinions',
       downloadLink: json['download_link'] != null &&
               json['download_link'].toString().startsWith('http')
           ? json['download_link']
