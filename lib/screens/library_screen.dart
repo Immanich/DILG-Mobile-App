@@ -126,21 +126,23 @@ class _LibraryScreenState extends State<LibraryScreen> {
       padding: const EdgeInsets.fromLTRB(28, 12, 28, 0),
       child: Row(
         children: [
+          // Left section - Select All/Unselect All with checkbox
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _handleSelectAll,
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 SizedBox(
                   width: 24,
                   child: Checkbox(
-                    value: allSelected, // Use allSelected instead of selectAll
+                    value: allSelected,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
                     onChanged: (bool? value) => _handleSelectAll(),
                   ),
                 ),
-                const SizedBox(width: 28),
+                const SizedBox(width: 8),
                 Text(
                   allSelected ? 'Unselect All' : 'Select All',
                   style: TextStyle(
@@ -152,27 +154,29 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 60),
+
           Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  '$selectedCount selected',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontStyle: FontStyle.italic,
-                  ),
+            child: Container(),
+          ),
+
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$selectedCount selected',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontStyle: FontStyle.italic,
                 ),
-                const SizedBox(width: 4),
-                IconButton(
-                  icon: Icon(Icons.close, size: 20),
-                  onPressed: _exitSelectionMode,
-                  padding: EdgeInsets.zero,
-                  constraints: BoxConstraints(),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                icon: Icon(Icons.close, size: 20),
+                onPressed: _exitSelectionMode,
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints(),
+              ),
+            ],
           ),
         ],
       ),
