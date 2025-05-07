@@ -26,7 +26,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _getUserInfo();
-    
   }
 
   Future<void> _getUserInfo() async {
@@ -41,6 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _getSelectedAvatarPath();
     });
   }
+
   Future<void> _getSelectedAvatarPath() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? selectedAvatarPath = prefs.getString('selectedAvatarPath');
@@ -48,8 +48,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _selectedAvatarPath = selectedAvatarPath ?? 'assets/default.png';
     });
   }
-
-  
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +76,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       : AssetImage('assets/default.png'),
                   radius: 50,
                 ),
-
                 SizedBox(width: 10.0),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,8 +192,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // FAQs Button
             InkWell(
               onTap: () {
-                  _launchURL(context, 'https://dilgbohol.com/faqs');
-                },
+                _launchURL(context, 'https://www.dilgbohol.com/FAQs');
+              },
               child: Container(
                 padding: EdgeInsets.all(16.0),
                 child: Row(
@@ -411,17 +408,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.remove('authToken');
   }
 
-Future<void> _launchURL(BuildContext context, String url) async {
-  try {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => WebViewPage(url: url, label: 'FAQs'),
-      ),
-    );
-  } catch (e) {
-    print('Error launching URL: $e');
+  Future<void> _launchURL(BuildContext context, String url) async {
+    try {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => WebViewPage(url: url, label: 'FAQs'),
+        ),
+      );
+    } catch (e) {
+      print('Error launching URL: $e');
+    }
   }
-}
-
 }
